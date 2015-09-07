@@ -1,10 +1,8 @@
 package org.weka.jpa;
 
 import java.io.File;
-
 import java.io.IOException;
 import java.lang.annotation.Annotation;
-import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -16,7 +14,7 @@ import javax.inject.Inject;
 import javax.inject.Named;
 import javax.persistence.Column;
 import javax.persistence.Entity;
-import javax.persistence.EntityManager; 
+import javax.persistence.EntityManager;
 import javax.persistence.ManyToMany;
 import javax.persistence.ManyToOne;
 import javax.persistence.OneToMany;
@@ -26,37 +24,42 @@ import javax.persistence.Temporal;
 
 import org.slf4j.Logger;
 
-
-import weka.core.Attribute; 
+import weka.core.Attribute;
+import weka.core.DenseInstance;
 import weka.core.Instances;
 import weka.core.converters.ArffSaver;
 
 public class Weka2JPAHelper {
-	
+
 	@Inject
 	private Logger log;
 	
 	@Inject  
 	@Named("WekaPersistence")
 	private EntityManager em;
-	
 
-	public <E> void save(File p_file, Collection<E> p_list, Class<E> p_class) {
-		// TODO Create a function to save data from list of Entities
-		
-	}
-
-	public <E> void save(File p_file, Class<E> p_entityClass) throws IOException {
-
-		Instances l_data = createInstance(p_entityClass);
+	public <E> void save(File p_file, Class<E> p_entityClass, Collection<E> p_list) throws IOException {
+		Instances l_data = createInstance(p_entityClass, p_list);
 
 		ArffSaver saver = new ArffSaver();
 		saver.setInstances(l_data);
 		saver.setFile(p_file);
+
 		saver.writeBatch();
 	}
 
-	private <E> Instances createInstance(Class<E> p_entityClass) {
+	public <E> void save(File p_file, Class<E> p_entityClass) throws IOException {
+
+		Instances l_data = createInstance(p_entityClass, null);
+
+		ArffSaver saver = new ArffSaver();
+		saver.setInstances(l_data);
+		saver.setFile(p_file);
+
+		saver.writeBatch();
+	}
+
+	private <E> Instances createInstance(Class<E> p_entityClass, Collection<E> p_list) {
 
 		if (!p_entityClass.isAnnotationPresent(Entity.class)) {
 			throw new NotEntityWEKAJPARuntimeException();
@@ -68,31 +71,37 @@ public class Weka2JPAHelper {
 
 		Map<Attribute, Field> l_mapAttributeToField = new HashMap<>(l_fields.length);
 		Map<Attribute, Class> l_mapAttributeToClass = new HashMap<>(l_fields.length);
+		Map<Attribute, ArrayList<String>> l_mapAttributeToRefVAlues = new HashMap<>(l_fields.length);
 		for (Field l_field : l_fields) {
 			Attribute l_att = null;
 			Annotation l_annot;
+			Class<?> l_type = l_field.getType();
 			if ((l_annot = l_field.getDeclaredAnnotation(ManyToMany.class)) != null) {
 				l_att = createAttributeFromManyToMany(l_field);
-			}else if ((l_annot = l_field.getDeclaredAnnotation(ManyToOne.class)) != null) {
+			} else if ((l_annot = l_field.getDeclaredAnnotation(ManyToOne.class)) != null) {
 
 				ArrayList<String> l_refValues = new ArrayList<>();
-				String l_qlString = "SELECT E FROM " + l_field.getType().getSimpleName() + " E ";
+
+				String l_qlString = "SELECT E FROM " + l_type.getSimpleName() + " E ";
 				Query l_query = em.createQuery(l_qlString);
-				List l_list = l_query.getResultList();
+				List<E> l_list = l_query.getResultList();
+
 				for (Object l_object : l_list) {
+					// TODO: how to identify the best way to convert the child
+					// entity in a string or number to be referenced, in
+					// addition you need to worry about the correct order of
+					// obtaining or using an index synchronized with the
+					// database.
+					// TODO: An alternative would be the annotation specifies
+					// Weka to indicate a method for obtaining a string or
+					// double / float representing the object. Remember that
+					// this field should also be indexed and stored in the
+					// database, Commission is therefore proposing should be
+					// noted as a Column type, Temporal, Id, etc.
 					l_refValues.add(l_object.toString());
 				}
-				// attVals.add(POSITIVO);
-				// attVals.add(NEUTRO);
-				// attVals.add(NEGATIVO);
-				// atts.add(new Attribute("Sentiment", attVals));
-				
-				// TODO: based on the field, to obtain the persistence layer,
-				// possible reference values.
-				// TODO: how to make low coupling with the persistence of the
-				// original system? Should be injected one PersistenceEntity,
-				// regardless of its implementation.
 				l_att = createAttributeFromManyToOne(l_field, l_refValues);
+				l_mapAttributeToRefVAlues.put(l_att, l_refValues);
 			} else if ((l_annot = l_field.getDeclaredAnnotation(OneToMany.class)) != null) {
 				l_att = createAttributeFromOneToMany(l_field);
 			} else if ((l_annot = l_field.getDeclaredAnnotation(OneToOne.class)) != null) {
@@ -106,43 +115,89 @@ public class Weka2JPAHelper {
 				continue;
 			}
 			l_atts.add(l_att);
-			l_mapAttributeToClass.put(l_att, l_field.getType());
+			l_mapAttributeToClass.put(l_att, l_type);
 			l_mapAttributeToField.put(l_att, l_field);
 		}
 		// 1. set up attributes
 
-
-		// 2. create Instances object
-		Instances l_data = new Instances(p_entityClass.getSimpleName(), l_atts,0);
-
-		populateInstanceWithData(l_data, p_entityClass);
+		Instances l_data = populateInstanceWithData(l_mapAttributeToRefVAlues, l_mapAttributeToField, l_atts,
+				p_entityClass, p_list);
 
 		return l_data;
 	}
 
-	private <E> void populateInstanceWithData(Instances p_data,Class<E> p_entityClass) {
+	private <E> Instances populateInstanceWithData(Map<Attribute, ArrayList<String>> p_mapAttributeToRefValues,
+			Map<Attribute, Field> p_mapAttributeToField, ArrayList<Attribute> p_atts, Class<E> p_entityClass,
+			Collection<E> p_list) {
 		// TODO Auto-generated method stub
 
-		// 3. fill with data
-		// first instance
-		// vals = new double[data.numAttributes()];
-		// //vals[0] = data.attribute(0).addStringValue("Texto do Post");
-		// vals[1] = data.attribute(1).addStringValue("Contexto do Post");
-		// vals[2] = data.attribute(2).addStringValue("Evento ocorrido no
-		// Post");
-		// vals[3] = attVals.indexOf(POSITIVO);
+		// 2. create Instances object
+		Instances l_data = new Instances(p_entityClass.getSimpleName(), p_atts, 0);
 
-		// add
-		// data.add(new DenseInstance(1.0, vals));
+		List<E> l_list;
+		if (p_list == null) {
+			String l_qlString = "SELECT E FROM " + p_entityClass.getSimpleName() + " E ";
 
-		// vals = new double[data.numAttributes()];
-		// vals[0] = data.attribute(0).addStringValue("Texto do Post 2");
-		// vals[1] = data.attribute(1).addStringValue("Contexto do Post 2");
-		// vals[2] = data.attribute(2).addStringValue("Evento ocorrido no Post
-		// 2");
-		// vals[3] = attVals.indexOf(NEUTRO);
-		// add
-		// data.add(new DenseInstance(1.0, vals));
+			Query l_query = em.createQuery(l_qlString);
+
+			l_list = l_query.getResultList();
+		} else
+			l_list = new ArrayList<>(p_list);
+
+		for (final E l_object : l_list) {
+			final double[] l_vals = new double[l_data.numAttributes()];
+
+			p_mapAttributeToField.forEach((p_att, p_field) -> {
+				// To facilitate debugging,
+				// Furthermore the Eclipse was not seeing the parameter p_att;
+				Attribute l_att = p_att;// to facilitate debugging
+				Field l_field = p_field;// to facilitate debugging
+				@SuppressWarnings("unchecked")
+				E l_obj = (E) l_object;// to facilitate debugging
+				ArrayList<Attribute> l_atts = p_atts;// to facilitate debugging
+
+				try {
+
+					int l_attIndex = l_atts.indexOf(l_att);
+					Class<?> l_fieldType = l_field.getType();
+					l_field.setAccessible(true);
+
+					double l_val = -1;
+					if (l_fieldType == String.class) {
+						String l_string = (String) l_field.get(l_obj);
+						if (l_string != null)
+							l_val = l_data.attribute(l_attIndex).addStringValue(l_string);
+
+					} else if (l_fieldType.isAssignableFrom(Number.class)) {
+						Double l_double = l_field.getDouble(l_obj);
+						if (l_double != null)
+							;
+						l_val = l_double;
+					} else {
+						ArrayList<String> l_refValues = p_mapAttributeToRefValues.get(l_att);
+						Object l_value = l_field.get(l_obj);
+						if (l_value != null) {
+							String l_string = l_value.toString();
+							l_val = l_refValues.indexOf(l_string);
+						}
+					}
+					l_vals[l_attIndex] = l_val;
+				} catch (Exception e) {
+					// does nothing ignores the value?
+					log.info(e.getMessage());
+				}
+
+			});
+			DenseInstance l_instance = new DenseInstance(1.0, l_vals);
+			for (int l_idx = 0; l_idx < l_vals.length; l_idx++) {
+				if (l_vals[l_idx] < 0)
+					l_instance.setMissing(l_idx);
+			}
+			l_data.add(l_instance);
+
+		}
+
+		return l_data;
 	}
 
 	private Attribute createAttributeFromTemporal(Field p_field) {
@@ -204,6 +259,5 @@ public class Weka2JPAHelper {
 		}
 		return l_att;
 	}
-
 
 }
