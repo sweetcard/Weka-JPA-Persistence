@@ -1,5 +1,5 @@
 {"name":"WEKA JPA Persistence - V0.0.2",
-"tagline":"A Framework to persist and retrieval information with JPA 2.0 (2.1))","
-body":"### Welcome to Project page from WEKA JPA Persistence Framework\r\n\r\nWhat makes me want to develop this project:\r\n* Not having to worry about parameters of access to the database, since having my integrated application to JPA\r\n* Use Entities (POJO) JPA and its metadata to generate the ARFF when you need to outsource information for use by third parties.\r\n* Generate new Entity (POJO) JPA based on information obtained in the ARFF\r\n",
+"tagline":"A Framework to persist and retrieval information with JPA 2.0 (2.1))",
+"body":"### Welcome to Project page from WEKA JPA Persistence Framework\r\n\r\nWhat makes me want to develop this project:\r\n* Not having to worry about parameters of access to the database, since having my integrated application to JPA\r\n* Use Entities (POJO) JPA and its metadata to generate the ARFF when you need to outsource information for use by third parties.\r\n* Generate new Entity (POJO) JPA based on information obtained in the ARFF\r\n",
 "google":"UA-65706449-1",
 "note":"Don't delete this file! It's used internally to help with page regeneration."}
