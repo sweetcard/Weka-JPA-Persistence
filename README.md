@@ -1,4 +1,4 @@
-### Welcome to Project page from WEKA JPA Persistence Framewor.
+### Welcome to Project page from WEKA JPA Persistence Framework.
 
 
 ***
