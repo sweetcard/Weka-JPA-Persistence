@@ -43,5 +43,27 @@
 
 	</dependencies>
 	<description>
-		</description>
+What makes me want to develop this project:
+
+* Not having to worry about parameters of access to the database, since having my integrated application to JPA.
+* Use Entities (POJO) JPA and its metadata to generate the ARFF when you need to outsource information for use by third parties.
+* Generate new Entity (POJO) JPA based on information obtained in the ARFF.
+</description>
+	<scm>
+		<url>scm:git:https://github.com/fracpete/ptstemmer-weka-package</url>
+		<connection>scm:git@github.com:SocialSLA/Weka-JPA-Persistence.git</connection>
+		<developerConnection>git@github.com:SocialSLA/Weka-JPA-Persistence.git</developerConnection>
+		<tag>Weka, jpa, persistence, hibernate</tag>
+	</scm>
+	<organization>
+		<name>Social SLA</name>
+		<url>http://socialsla.github.io/</url>
+	</organization>
+	<url>http://socialsla.github.io/Weka-JPA-Persistence</url>
+	<name>Weka JPA Persistence</name>
+	<inceptionYear>2015</inceptionYear>
+	<issueManagement>
+		<system>GiHub Issues</system>
+		<url>https://github.com/SocialSLA/Weka-JPA-Persistence/issues</url>
+	</issueManagement>
 </project>
