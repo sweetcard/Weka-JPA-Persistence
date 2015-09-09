@@ -28,6 +28,9 @@ import javax.persistence.Query;
 import javax.persistence.Temporal;
 
 import org.slf4j.Logger;
+import org.weka.jpa.utils.CallbackField;
+import org.weka.jpa.utils.CallbackFieldToNumber;
+import org.weka.jpa.utils.CallbackFieldToString;
 
 import weka.core.Attribute;
 import weka.core.DenseInstance;
@@ -45,6 +48,7 @@ public class Weka2JPAHelper {
 	 * entidade base.
 	 */
 	private Set<Class<?>> ignoreFieldsTypeOf = new HashSet<>();
+
 	/**
 	 * Armazena os nomes dos campos que devem ser ignorados quando definem um
 	 * campo da entidade base
@@ -54,9 +58,35 @@ public class Weka2JPAHelper {
 	/**
 	 * Flag que permite usar classes que não sejam Entitades de persistencia.
 	 * 
-	 * Veja o método setBaseClassNotEntity() para mais detalhes.
+	 * Veja o método {@link #setBaseClassNotEntity(boolean)} para mais detalhes.
 	 */
 	private boolean basseClassNotEntity;
+
+	/**
+	 * Mapa de CallBacks para manipulação especial de campos.
+	 * 
+	 * Um callback é responsável por manipular um campo especifico, este
+	 * {@link org.weka.jpa.utils.CallbackField} trabalha especificamente com o
+	 * nome do campo e se refere especificamente a um campo da classe base.
+	 */
+	private Map<String, CallbackField<?, ?>> baseClassFieldCallBack = new HashMap<>();
+
+	/**
+	 * Armazena os campos extras para serem adicionados ao arquivo ARFF com
+	 * referencia a classe base.
+	 * 
+	 * veja mais detalhes no método
+	 * {@link #addExtraField(String, Object, CallbackField)}
+	 */
+	private Set<String> baseClassExtraFields = new HashSet<>();
+
+	/**
+	 * Armazena o valor padrão para cada campo extra.
+	 * 
+	 * Veja mais detalhes no método
+	 * {@link #addExtraField(String, Object, CallbackField)}.
+	 */
+	private Map<String, Object> baseClassDefaultValuesExtraField = new HashMap<>();
 
 	/**
 	 * Caso não se esteja usando CDI (como WELD) é preciso fornecer manualmente
@@ -409,7 +439,125 @@ public class Weka2JPAHelper {
 		basseClassNotEntity = p_flag;
 	}
 
+	/**
+	 * @see #setBaseClassNotEntity(boolean)
+	 * @return
+	 */
 	public boolean isBaseClassNotEntity() {
 		return basseClassNotEntity;
+	}
+
+	/**
+	 * Permite adicionar um campo extra a classe base.
+	 * 
+	 * Quando for preciso adicionar um campo extra a classe base deve ser usado
+	 * este método informando o valor padrão que se deseja usar neste campo.
+	 * 
+	 * O Valor padrão pode ser qualquer tipo de objeto, porém se não for String
+	 * ou Number (ou super classe de Number) deverá existir um
+	 * {@link CallbackField} para manipula-lo e converte-lo em String ou Number.
+	 * 
+	 * Examplo: <code>
+	 * l_arffHelper.addExtraField("classification",new Classification(2,"?"), (p_field,p_value)->{
+	 * 			return p_value.getName();
+	 *    });
+	 * </code>
+	 * 
+	 * @see #addExtraField(String, Object, CallbackField)
+	 * @see #addExtraField(String, Object, CallbackFieldToNumber)
+	 * @see #addExtraField(String, Object, CallbackFieldToString)
+	 * @see #addExtraField(String, Number)
+	 * @see #addExtraField(String, String)
+	 * 
+	 * @param p_string
+	 * @param p_unknow
+	 * @param p_callback
+	 */
+	public <R, V> void addExtraField(String p_string, V p_unknow, CallbackField<R, V> p_callback) {
+		baseClassExtraFields.add(p_string);
+		baseClassDefaultValuesExtraField.put(p_string, p_unknow);
+		baseClassFieldCallBack.put(p_string, p_callback);
+	}
+
+	/**
+	 * Específico para tipos de retorno String, veja mais detalhes em
+	 * {@link #addExtraField(String, Object, CallbackField)}
+	 * 
+	 * @see #addExtraField(String, Object, CallbackField)
+	 * @see #addExtraField(String, Object, CallbackFieldToNumber)
+	 * @see #addExtraField(String, Object, CallbackFieldToString)
+	 * @see #addExtraField(String, Number)
+	 * @see #addExtraField(String, String)
+	 * 
+	 * @param p_string
+	 * @param p_unknow
+	 * @param p_callback
+	 */
+	public <V> void addExtraField(String p_string, V p_unknow, CallbackFieldToString<V> p_callback) {
+		baseClassExtraFields.add(p_string);
+		baseClassDefaultValuesExtraField.put(p_string, p_unknow);
+		baseClassFieldCallBack.put(p_string, p_callback);
+	}
+
+	/**
+	 * Específico para tipos de retorno Number, veja mais detalhes em
+	 * {@link #addExtraField(String, Object, CallbackField)}
+	 * 
+	 * @see #addExtraField(String, Object, CallbackField)
+	 * @see #addExtraField(String, Object, CallbackFieldToNumber)
+	 * @see #addExtraField(String, Object, CallbackFieldToString)
+	 * @see #addExtraField(String, Number)
+	 * @see #addExtraField(String, String)
+	 * 
+	 * @param p_string
+	 * @param p_unknow
+	 * @param p_callback
+	 */
+	public <R extends Number, V> void addExtraField(String p_string, V p_unknow,
+			CallbackFieldToNumber<R, V> p_callback) {
+		baseClassExtraFields.add(p_string);
+		baseClassDefaultValuesExtraField.put(p_string, p_unknow);
+		baseClassFieldCallBack.put(p_string, p_callback);
+	}
+
+	/**
+	 * Adiciona um campo extra que seja do tipo númerico.
+	 * 
+	 * Não precisa ser callback prem veja mais destalhes em
+	 * Weka2JPAHelper#addExtraField(String, Object, Callback)
+	 * 
+	 * @see #addExtraField(String, Object, CallbackField)
+	 * @see #addExtraField(String, Object, CallbackFieldToNumber)
+	 * @see #addExtraField(String, Object, CallbackFieldToString)
+	 * @see #addExtraField(String, Number)
+	 * @see #addExtraField(String, String)
+	 * 
+	 * @param p_string
+	 * @param p_unknow
+	 */
+	public void addExtraField(String p_string, Number p_unknow) {
+		baseClassExtraFields.add(p_string);
+		baseClassDefaultValuesExtraField.put(p_string, p_unknow);
+	}
+
+	/**
+	 * Adiciona um campo extra que seja do tipo númerico.
+	 * 
+	 * Não precisa ser callback prem veja mais destalhes em
+	 * Weka2JPAHelper#addExtraField(String, Object, Callback)
+	 * 
+	 * @see #addExtraField(String, Object, CallbackField)
+	 * @see #addExtraField(String, Object, CallbackFieldToNumber)
+	 * @see #addExtraField(String, Object, CallbackFieldToString)
+	 * @see #addExtraField(String, Number)
+	 * @see #addExtraField(String, String) 
+	 * 
+	 * @param p_string
+	 * @param p_unknow
+	 */
+	public void addExtraField(String p_string, String p_unknow) {
+		baseClassExtraFields.add(p_string);
+		baseClassDefaultValuesExtraField.put(p_string, p_unknow);
+
 	}
 }
