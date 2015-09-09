@@ -31,15 +31,47 @@ import weka.core.converters.ArffSaver;
 
 public class Weka2JPAHelper {
 
-	@Inject
 	private Logger log;
 
-	@Inject
-	@Named("SocialSLA")
 	private EntityManager em;
 
+	private Map<Class<?>, DefaultQueryHandler> mapDefaultQueryHandler;
+
+	/**
+	 * Caso não se esteja usando CDI (como WELD) é preciso fornecer manualmente
+	 * o Logger e EntityManager para a classe;
+	 * 
+	 * Em containers gerenciados por CDI basta solicitar a instancia da classe e
+	 * esta será injetada com o Logger correto e o EntityManager adequado.
+	 * 
+	 * @param p_logger
+	 * @param p_em
+	 */
+	@Inject
+	public Weka2JPAHelper(Logger p_logger, @Named("SocialSLA") EntityManager p_em) {
+		log = p_logger;
+		em = p_em;
+	}
+
+	/**
+	 * Cria o arquivo ARFF com base na classe da entidade informada, e a lista
+	 * de entidades instancianadas.
+	 * 
+	 * Deve ser informado o nome do arquivo a ser criado, a classe da entidade
+	 * que é a base e referencia para construir o arquivo ARFF, esta classe será
+	 * usada para obter informações base dos parametros do Arquivo ARFF.
+	 * 
+	 * Se for informado a Collection esta deverá ser uma coleção de instancias
+	 * da classe informada como base, caso não informado a classe base será
+	 * usasda para efetuar um "SELECT" pelo JPA na camada de persistência.
+	 * 
+	 * @param p_file
+	 * @param p_entityClass
+	 * @param p_list
+	 * @throws IOException
+	 */
 	public <E> void save(File p_file, Class<E> p_entityClass, Collection<E> p_list) throws IOException {
-		Instances l_data = createInstance(p_entityClass, p_list);
+		Instances l_data = createAttributesAndInstances(p_entityClass, p_list);
 
 		ArffSaver saver = new ArffSaver();
 		saver.setInstances(l_data);
@@ -48,9 +80,25 @@ public class Weka2JPAHelper {
 		saver.writeBatch();
 	}
 
+	/**
+	 * Cria o arquivo ARFF com base na classe da entidade informada, consultando
+	 * a camada de persitencia injetada pela lista de objetos.
+	 * 
+	 * Deve ser informado o nome do arquivo a ser criado, a classe da entidade
+	 * que é a base e referencia para construir o arquivo ARFF, esta classe será
+	 * usada para obter informações base dos parametros do Arquivo ARFF.
+	 * 
+	 * Se for informado a Collection esta deverá ser uma coleção de instancias
+	 * da classe informada como base, caso não informado a classe base será
+	 * usasda para efetuar um "SELECT" pelo JPA na camada de persistência.
+	 * 
+	 * @param p_file
+	 * @param p_entityClass
+	 * @throws IOException
+	 */
 	public <E> void save(File p_file, Class<E> p_entityClass) throws IOException {
 
-		Instances l_data = createInstance(p_entityClass, null);
+		Instances l_data = createAttributesAndInstances(p_entityClass, null);
 
 		ArffSaver saver = new ArffSaver();
 		saver.setInstances(l_data);
@@ -59,7 +107,15 @@ public class Weka2JPAHelper {
 		saver.writeBatch();
 	}
 
-	private <E> Instances createInstance(Class<E> p_entityClass, Collection<E> p_list) {
+	/**
+	 * Cria as instancias usadas para construir a seção dados, mas antes
+	 * constroi o cabeçalho com as informações de atributos do arquivo ARFF
+	 * 
+	 * @param p_entityClass
+	 * @param p_list
+	 * @return
+	 */
+	private <E> Instances createAttributesAndInstances(Class<E> p_entityClass, Collection<E> p_list) {
 
 		if (!p_entityClass.isAnnotationPresent(Entity.class)) {
 			throw new NotEntityWEKAJPARuntimeException();
@@ -67,11 +123,31 @@ public class Weka2JPAHelper {
 
 		Field[] l_fields = p_entityClass.getDeclaredFields();
 
+		Map<Attribute, Field> l_mapAttributeToField = new HashMap<>(l_fields.length);
+		Map<Attribute, ArrayList<String>> l_mapAttributeToRefVAlues = new HashMap<>(l_fields.length);
+
+		ArrayList<Attribute> l_atts = createAttributes(l_mapAttributeToRefVAlues, l_mapAttributeToField, l_fields);
+
+		Instances l_data = populateInstanceWithData(l_mapAttributeToRefVAlues, l_mapAttributeToField, l_atts,
+				p_entityClass, p_list);
+
+		return l_data;
+	}
+
+	/**
+	 * Cria os atributos usados no cabeçalho e seus metadados para aferição dos
+	 * tipos.
+	 * 
+	 * @param l_fields
+	 * @param l_mapAttributeToRefVAlues
+	 * @param l_mapAttributeToField
+	 * @return
+	 */
+	private <E> ArrayList<Attribute> createAttributes(Map<Attribute, ArrayList<String>> l_mapAttributeToRefVAlues,
+			Map<Attribute, Field> l_mapAttributeToField, Field[] l_fields) {
+
 		ArrayList<Attribute> l_atts = new ArrayList<Attribute>(l_fields.length);
 
-		Map<Attribute, Field> l_mapAttributeToField = new HashMap<>(l_fields.length);
-		Map<Attribute, Class> l_mapAttributeToClass = new HashMap<>(l_fields.length);
-		Map<Attribute, ArrayList<String>> l_mapAttributeToRefVAlues = new HashMap<>(l_fields.length);
 		for (Field l_field : l_fields) {
 			Attribute l_att = null;
 			Annotation l_annot;
@@ -115,23 +191,15 @@ public class Weka2JPAHelper {
 				continue;
 			}
 			l_atts.add(l_att);
-			l_mapAttributeToClass.put(l_att, l_type);
 			l_mapAttributeToField.put(l_att, l_field);
 		}
-		// 1. set up attributes
-
-		Instances l_data = populateInstanceWithData(l_mapAttributeToRefVAlues, l_mapAttributeToField, l_atts,
-				p_entityClass, p_list);
-
-		return l_data;
+		return l_atts;
 	}
 
 	private <E> Instances populateInstanceWithData(Map<Attribute, ArrayList<String>> p_mapAttributeToRefValues,
 			Map<Attribute, Field> p_mapAttributeToField, ArrayList<Attribute> p_atts, Class<E> p_entityClass,
 			Collection<E> p_list) {
-		// TODO Auto-generated method stub
 
-		// 2. create Instances object
 		Instances l_data = new Instances(p_entityClass.getSimpleName(), p_atts, 0);
 
 		List<E> l_list;
