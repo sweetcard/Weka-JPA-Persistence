@@ -3,12 +3,17 @@ package org.weka.jpa;
 import java.io.File;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -34,6 +39,17 @@ public class Weka2JPAHelper {
 	private Logger log;
 
 	private EntityManager em;
+
+	/**
+	 * Armazena as classes que devem ser ignoradas quando definem um campo da
+	 * entidade base.
+	 */
+	private Set<Class<?>> ignoreFieldsTypeOf = new HashSet<>();
+	/**
+	 * Armazena os nomes dos campos que devem ser ignorados quando definem um
+	 * campo da entidade base
+	 */
+	private Set<String> ignoreFieldsName = new HashSet<>();
 
 	/**
 	 * Caso não se esteja usando CDI (como WELD) é preciso fornecer manualmente
@@ -150,10 +166,10 @@ public class Weka2JPAHelper {
 			Attribute l_att = null;
 			Annotation l_annot;
 			Class<?> l_type = l_field.getType();
-			if(l_field.getName().equals("serialVersionUID")){
+			if (ignoreFieldsTypeOf.contains(l_type) || l_field.getName().equals("serialVersionUID")) {
 				continue;
 			}
-			
+
 			if ((l_annot = l_field.getDeclaredAnnotation(ManyToMany.class)) != null) {
 				l_att = createAttributeFromManyToMany(l_field);
 			} else if ((l_annot = l_field.getDeclaredAnnotation(ManyToOne.class)) != null) {
@@ -329,5 +345,47 @@ public class Weka2JPAHelper {
 		}
 		return l_att;
 	}
-	
+
+	/**
+	 * Permite informar classes par que os campos que forem do mesmo tipo sejam
+	 * ignorados.
+	 * 
+	 * @see ignoreFieldTypeOf(Collection<Class>)
+	 * @param p_classes
+	 */
+	public void ignoreFieldTypeOf(Class<?>... p_classes) {
+		ignoreFieldTypeOf(Arrays.asList(p_classes));
+	}
+
+	/**
+	 * Permite informar uma coleção de classes para que os campos que forem do
+	 * mesmo tipo em cada classe informada sejam ignorados.
+	 * 
+	 * @see ignoreFieldTypeOf(Class...)
+	 * @param p_classes
+	 */
+	public void ignoreFieldTypeOf(Collection<Class<?>> p_classes) {
+		ignoreFieldsTypeOf.addAll(p_classes);
+	}
+
+	/**
+	 * Permite informar o nome dos campos que devem ser ignorados.
+	 * 
+	 * @see ignoreFieldName(Collection<String>)
+	 * @param p_fieldsName
+	 */
+	public void ignoreFieldName(String... p_fieldsName) {
+		ignoreFieldsName(Arrays.asList(p_fieldsName));
+	}
+
+	/**
+	 * Permite informar uma colleção de nomes de campos que devem ser ignorados.
+	 * 
+	 * @see ignoreFieldName(String...)
+	 * @param p_fieldsName
+	 */
+	public void ignoreFieldsName(List<String> p_fieldsName) {
+		ignoreFieldsName.addAll(p_fieldsName);
+	}
+
 }
