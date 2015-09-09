@@ -20,24 +20,6 @@ package org.weka.jpa.utils;
  *            Tipo do valor referente ao campo
  */
 @FunctionalInterface
-public interface CallbackFieldToString<E, V> extends CallbackField<E, String, V> {
-
-	/**
-	 * O método {@link #call(String, V)} é chamado quando necessário manipular o
-	 * campo no qual este {@link CallbackFieldToString} foi registrado este
-	 * método recebe o nome do campo que forneceu o valor e o valor que deverá
-	 * ser manipullado, que será do tipo V (Generic).
-	 * 
-	 * 
-	 * @param p_entity
-	 *            Entidade a qual pertence o campo e o valor obtido no campo.
-	 * @param p_fieldName
-	 *            Nome do campo que está fornecendo o valor
-	 * @param p_fieldValue
-	 *            Valor do campo a ser manipulado
-	 * 
-	 * @return um valor do tipo R que deve ser {@link String} ou um tipo
-	 *         {@link Number}
-	 */
-	public String call(E p_entity, String p_fieldName, V p_fieldValue);
+public interface CallbackFieldToString  extends CallbackField<String> {
+ 
 }

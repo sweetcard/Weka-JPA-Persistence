@@ -2,13 +2,9 @@ package org.weka.jpa;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.annotation.Annotation;
-import java.lang.reflect.Array;
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -17,15 +13,9 @@ import java.util.Set;
 
 import javax.inject.Inject;
 import javax.inject.Named;
-import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.EntityManager;
-import javax.persistence.ManyToMany;
-import javax.persistence.ManyToOne;
-import javax.persistence.OneToMany;
-import javax.persistence.OneToOne;
 import javax.persistence.Query;
-import javax.persistence.Temporal;
 
 import org.slf4j.Logger;
 import org.weka.jpa.utils.CallbackField;
@@ -33,27 +23,27 @@ import org.weka.jpa.utils.CallbackFieldToNumber;
 import org.weka.jpa.utils.CallbackFieldToString;
 
 import weka.core.Attribute;
-import weka.core.DenseInstance;
+import weka.core.Instance;
 import weka.core.Instances;
 import weka.core.converters.ArffSaver;
 
-public class Weka2JPAHelper {
+public class Weka2JPAHelper<E> {
 
 	private Logger log;
 
-	private EntityManager em;
+	EntityManager em;
 
 	/**
 	 * Armazena as classes que devem ser ignoradas quando definem um campo da
 	 * entidade base.
 	 */
-	private Set<Class<?>> ignoreFieldsTypeOf = new HashSet<>();
+	Set<Class<?>> ignoreFieldsTypeOf = new HashSet<>();
 
 	/**
 	 * Armazena os nomes dos campos que devem ser ignorados quando definem um
 	 * campo da entidade base
 	 */
-	private Set<String> ignoreFieldsName = new HashSet<>();
+	Set<String> ignoreFieldsName = new HashSet<>();
 
 	/**
 	 * Flag que permite usar classes que não sejam Entitades de persistencia.
@@ -69,7 +59,17 @@ public class Weka2JPAHelper {
 	 * {@link org.weka.jpa.utils.CallbackField} trabalha especificamente com o
 	 * nome do campo e se refere especificamente a um campo da classe base.
 	 */
-	private Map<String, CallbackField<?, ?, ?>> baseClassFieldCallBack = new HashMap<>();
+	Map<String, CallbackField<?>> baseClassFieldCallBack = new HashMap<>();
+
+	/**
+	 * Mapa de CallBacks para manipulação de classes para uso com Relações mais
+	 * complexas de Istancias.
+	 * 
+	 * Caso um campo não tenha um callback informado para ele quando cadastrado
+	 * como extrafield, este callback pode ser usado.
+	 * 
+	 */
+	Map<Class, CallbackField<?>> baseClassFieldClassCallBack = new HashMap<>();
 
 	/**
 	 * Armazena os campos extras para serem adicionados ao arquivo ARFF com
@@ -78,7 +78,7 @@ public class Weka2JPAHelper {
 	 * veja mais detalhes no método
 	 * {@link #addExtraField(String, Object, CallbackField)}
 	 */
-	private Set<String> baseClassExtraFields = new HashSet<>();
+	Set<String> baseClassExtraFieldsNames = new HashSet<>();
 
 	/**
 	 * Armazena o valor padrão para cada campo extra.
@@ -86,7 +86,18 @@ public class Weka2JPAHelper {
 	 * Veja mais detalhes no método
 	 * {@link #addExtraField(String, Object, CallbackField)}.
 	 */
-	private Map<String, Object> baseClassDefaultValuesExtraField = new HashMap<>();
+	Map<String, Object> baseClassDefaultValuesExtraField = new HashMap<>();
+
+	/**
+	 * Armazena o valor que será tratado como incóginito (missing) para o campo
+	 * da entidade base.
+	 */
+	Map<String, Object> mapMissingFields = new HashMap<>();
+
+	/**
+	 * Armazena o classe do valor default
+	 */
+	Map<String, Class<?>> baseClassDefaultClassExtraField = new HashMap<>();
 
 	/**
 	 * Caso não se esteja usando CDI (como WELD) é preciso fornecer manualmente
@@ -121,7 +132,7 @@ public class Weka2JPAHelper {
 	 * @param p_list
 	 * @throws IOException
 	 */
-	public <E> void save(File p_file, Class<E> p_entityClass, Collection<E> p_list) throws IOException {
+	public void save(File p_file, Class<E> p_entityClass, Collection<E> p_list) throws IOException {
 		Instances l_data = createAttributesAndInstances(p_entityClass, p_list);
 
 		ArffSaver saver = new ArffSaver();
@@ -147,7 +158,7 @@ public class Weka2JPAHelper {
 	 * @param p_entityClass
 	 * @throws IOException
 	 */
-	public <E> void save(File p_file, Class<E> p_entityClass) throws IOException {
+	public void save(File p_file, Class<E> p_entityClass) throws IOException {
 
 		Instances l_data = createAttributesAndInstances(p_entityClass, null);
 
@@ -166,221 +177,40 @@ public class Weka2JPAHelper {
 	 * @param p_list
 	 * @return
 	 */
-	private <E> Instances createAttributesAndInstances(Class<E> p_entityClass, Collection<E> p_list) {
+	private Instances createAttributesAndInstances(Class<E> p_entityClass, Collection<E> p_list) {
 
 		if (!basseClassNotEntity && !p_entityClass.isAnnotationPresent(Entity.class)) {
 			throw new NotEntityWEKAJPARuntimeException();
 		}
 
-		Field[] l_fields = p_entityClass.getDeclaredFields();
+		Weka2JPAAttributeProcessor<E> l_processor = new Weka2JPAAttributeProcessor<E>(p_entityClass, this);
 
-		Map<Attribute, Field> l_mapAttributeToField = new HashMap<>(l_fields.length);
-		Map<Attribute, ArrayList<String>> l_mapAttributeToRefVAlues = new HashMap<>(l_fields.length);
+		ArrayList<Attribute> l_atts = l_processor.createAttributes();
 
-		ArrayList<Attribute> l_atts = createAttributes(l_mapAttributeToRefVAlues, l_mapAttributeToField, l_fields);
-
-		Instances l_data = populateInstanceWithData(l_mapAttributeToRefVAlues, l_mapAttributeToField, l_atts,
-				p_entityClass, p_list);
+		Instances l_data = populateInstanceWithData(l_processor, l_atts, p_list);
 
 		return l_data;
 	}
 
-	/**
-	 * Cria os atributos usados no cabeçalho e seus metadados para aferição dos
-	 * tipos.
-	 * 
-	 * @param l_fields
-	 * @param l_mapAttributeToRefVAlues
-	 * @param l_mapAttributeToField
-	 * @return
-	 */
-	private <E> ArrayList<Attribute> createAttributes(Map<Attribute, ArrayList<String>> l_mapAttributeToRefVAlues,
-			Map<Attribute, Field> l_mapAttributeToField, Field[] l_fields) {
-
-		ArrayList<Attribute> l_atts = new ArrayList<Attribute>(l_fields.length);
-
-		for (Field l_field : l_fields) {
-			Attribute l_att = null;
-			Annotation l_annot;
-			Class<?> l_type = l_field.getType();
-			if (ignoreFieldsTypeOf.contains(l_type) || l_field.getName().equals("serialVersionUID")) {
-				continue;
-			}
-
-			if ((l_annot = l_field.getDeclaredAnnotation(ManyToMany.class)) != null) {
-				l_att = createAttributeFromManyToMany(l_field);
-			} else if ((l_annot = l_field.getDeclaredAnnotation(ManyToOne.class)) != null) {
-
-				ArrayList<String> l_refValues = new ArrayList<>();
-
-				String l_qlString = "SELECT E FROM " + l_type.getSimpleName() + " E ";
-				Query l_query = em.createQuery(l_qlString);
-				List<E> l_list = l_query.getResultList();
-
-				for (Object l_object : l_list) {
-					// TODO: how to identify the best way to convert the child
-					// entity in a string or number to be referenced, in
-					// addition you need to worry about the correct order of
-					// obtaining or using an index synchronized with the
-					// database.
-					// TODO: An alternative would be the annotation specifies
-					// Weka to indicate a method for obtaining a string or
-					// double / float representing the object. Remember that
-					// this field should also be indexed and stored in the
-					// database, Commission is therefore proposing should be
-					// noted as a Column type, Temporal, Id, etc.
-					l_refValues.add(l_object.toString());
-				}
-				l_att = createAttributeFromManyToOne(l_field, l_refValues);
-				l_mapAttributeToRefVAlues.put(l_att, l_refValues);
-			} else if ((l_annot = l_field.getDeclaredAnnotation(OneToMany.class)) != null) {
-				l_att = createAttributeFromOneToMany(l_field);
-			} else if ((l_annot = l_field.getDeclaredAnnotation(OneToOne.class)) != null) {
-				l_att = createAttributeFromOneToOne(l_field);
-			} else if ((l_annot = l_field.getDeclaredAnnotation(Temporal.class)) != null) {
-				l_att = createAttributeFromTemporal(l_field);
-			} else if ((l_annot = l_field.getDeclaredAnnotation(Column.class)) != null) {
-				l_att = createAttributeFromColumn(l_field);
-			} else {
-				// qualquer outra anotação será ignorada
-				continue;
-			}
-			l_atts.add(l_att);
-			l_mapAttributeToField.put(l_att, l_field);
-		}
-		return l_atts;
-	}
-
-	private <E> Instances populateInstanceWithData(Map<Attribute, ArrayList<String>> p_mapAttributeToRefValues,
-			Map<Attribute, Field> p_mapAttributeToField, ArrayList<Attribute> p_atts, Class<E> p_entityClass,
+	private Instances populateInstanceWithData(Weka2JPAAttributeProcessor<E> l_processor, ArrayList<Attribute> p_atts,
 			Collection<E> p_list) {
 
-		Instances l_data = new Instances(p_entityClass.getSimpleName(), p_atts, 0);
-
-		List<E> l_list;
+		Collection<E> l_list;
 		if (p_list == null) {
-			String l_qlString = "SELECT E FROM " + p_entityClass.getSimpleName() + " E ";
+			log.info("Instancias obtidos diretamente pelo JPA");
+			String l_qlString = "SELECT E FROM " + l_processor.getRelationBaseName() + " E ";
 
 			Query l_query = em.createQuery(l_qlString);
 
 			l_list = l_query.getResultList();
-		} else
-			l_list = new ArrayList<>(p_list);
-
-		for (final E l_object : l_list) {
-			final double[] l_vals = new double[l_data.numAttributes()];
-
-			p_mapAttributeToField.forEach((p_att, p_field) -> {
-				// To facilitate debugging,
-				// Furthermore the Eclipse was not seeing the parameter p_att;
-				Attribute l_att = p_att;// to facilitate debugging
-				Field l_field = p_field;// to facilitate debugging
-				@SuppressWarnings("unchecked")
-				E l_obj = (E) l_object;// to facilitate debugging
-				ArrayList<Attribute> l_atts = p_atts;// to facilitate debugging
-
-				try {
-
-					int l_attIndex = l_atts.indexOf(l_att);
-					Class<?> l_fieldType = l_field.getType();
-					l_field.setAccessible(true);
-
-					double l_val = -1;
-					if (l_fieldType == String.class) {
-						String l_string = (String) l_field.get(l_obj);
-						if (l_string != null)
-							l_val = l_data.attribute(l_attIndex).addStringValue(l_string);
-
-					} else if (l_fieldType.isAssignableFrom(Number.class)) {
-						Double l_double = l_field.getDouble(l_obj);
-						if (l_double != null)
-							;
-						l_val = l_double;
-					} else {
-						ArrayList<String> l_refValues = p_mapAttributeToRefValues.get(l_att);
-						Object l_value = l_field.get(l_obj);
-						if (l_value != null) {
-							String l_string = l_value.toString();
-							l_val = l_refValues.indexOf(l_string);
-						}
-					}
-					l_vals[l_attIndex] = l_val;
-				} catch (Exception e) {
-					// does nothing ignores the value?
-					log.info(e.getMessage());
-				}
-
-			});
-			DenseInstance l_instance = new DenseInstance(1.0, l_vals);
-			for (int l_idx = 0; l_idx < l_vals.length; l_idx++) {
-				if (l_vals[l_idx] < 0)
-					l_instance.setMissing(l_idx);
-			}
-			l_data.add(l_instance);
-
+		} else {
+			log.info("Instancias usando lista de entidades fornecida");
+			l_list = p_list;
 		}
 
-		return l_data;
-	}
+		Instances l_instances = l_processor.createInstances(p_atts, l_list);
 
-	private Attribute createAttributeFromTemporal(Field p_field) {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	private Attribute createAttributeFromOneToOne(Field p_field) {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	private Attribute createAttributeFromOneToMany(Field p_field) {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	private Attribute createAttributeFromManyToOne(Field p_field, ArrayList<String> p_refListValue) {
-		// TODO Auto-generated method stub
-		String l_name = createName(p_field);
-
-		Attribute l_att = new Attribute(l_name, p_refListValue);
-
-		return l_att;
-	}
-
-	private String createName(Field p_field) {
-		Column l_annot = p_field.getDeclaredAnnotation(Column.class);
-		String l_name = null;
-		if (l_annot != null)
-			l_name = l_annot.name();
-		if (l_name == null || l_name.isEmpty())
-			l_name = p_field.getName();
-
-		return l_name;
-	}
-
-	private Attribute createAttributeFromManyToMany(Field p_field) {
-
-		String l_name = createName(p_field);
-
-		Attribute l_att = null;
-		if (p_field.getType() == String.class) {
-			l_att = new Attribute(l_name, (ArrayList<String>) null);
-		} else if (p_field.getType().isAssignableFrom(Number.class)) {
-			l_att = new Attribute(l_name);
-		}
-		return l_att;
-	}
-
-	private Attribute createAttributeFromColumn(Field p_field) {
-		// TODO Auto-generated method stub
-		String l_name = createName(p_field);
-		Attribute l_att = null;
-		if (p_field.getType() == String.class) {
-			l_att = new Attribute(l_name, (ArrayList<String>) null);
-		} else if (p_field.getType().isAssignableFrom(Number.class)) {
-			l_att = new Attribute(l_name);
-		}
-		return l_att;
+		return l_instances;
 	}
 
 	/**
@@ -458,28 +288,11 @@ public class Weka2JPAHelper {
 	 * {@link CallbackField} para manipula-lo e converte-lo em String ou Number.
 	 * 
 	 * Examplo: <code>
-	 * l_arffHelper.addExtraField("classification",new Classification(2,"?"), (p_field,p_value)->{
+	 * l_arffHelper.addExtraField("classification",new Classification(2,"?"), (p_entity, p_field,p_value)->{
 	 * 			return p_value.getName();
 	 *    });
 	 * </code>
 	 * 
-	 * @see #addExtraField(String, Object, CallbackField)
-	 * @see #addExtraField(String, Object, CallbackFieldToNumber)
-	 * @see #addExtraField(String, Object, CallbackFieldToString)
-	 * @see #addExtraField(String, Number)
-	 * @see #addExtraField(String, String)
-	 * 
-	 * @param p_string
-	 * @param p_unknow
-	 * @param p_callback
-	 */
-	public <E, R, V> void addExtraField(String p_string, V p_unknow, CallbackField<E, R, V> p_callback) {
-		baseClassExtraFields.add(p_string);
-		baseClassDefaultValuesExtraField.put(p_string, p_unknow);
-		baseClassFieldCallBack.put(p_string, p_callback);
-	}
-
-	/**
 	 * Específico para tipos de retorno String, veja mais detalhes em
 	 * {@link #addExtraField(String, Object, CallbackField)}
 	 * 
@@ -493,15 +306,15 @@ public class Weka2JPAHelper {
 	 * @param p_unknow
 	 * @param p_callback
 	 */
-	public <E, V> void addExtraField(String p_string, V p_unknow, CallbackFieldToString<E, V> p_callback) {
-		baseClassExtraFields.add(p_string);
+	public <V> void addExtraFieldToString(String p_string, V p_unknow, CallbackFieldToString p_callback) {
+		baseClassExtraFieldsNames.add(p_string);
 		baseClassDefaultValuesExtraField.put(p_string, p_unknow);
 		baseClassFieldCallBack.put(p_string, p_callback);
 	}
 
 	/**
 	 * Específico para tipos de retorno Number, veja mais detalhes em
-	 * {@link #addExtraField(String, Object, CallbackField)}
+	 * {@link #addExtraFieldToString(String, Object, CallbackField)}
 	 * 
 	 * @see #addExtraField(String, Object, CallbackField)
 	 * @see #addExtraField(String, Object, CallbackFieldToNumber)
@@ -513,9 +326,9 @@ public class Weka2JPAHelper {
 	 * @param p_unknow
 	 * @param p_callback
 	 */
-	public <E, R extends Number, V> void addExtraField(String p_string, V p_unknow,
-			CallbackFieldToNumber<E, R, V> p_callback) {
-		baseClassExtraFields.add(p_string);
+	public <R extends Number, V> void addExtraFieldToNumber(String p_string, V p_unknow,
+			CallbackFieldToNumber<R> p_callback) {
+		baseClassExtraFieldsNames.add(p_string);
 		baseClassDefaultValuesExtraField.put(p_string, p_unknow);
 		baseClassFieldCallBack.put(p_string, p_callback);
 	}
@@ -536,7 +349,7 @@ public class Weka2JPAHelper {
 	 * @param p_unknow
 	 */
 	public void addExtraField(String p_string, Number p_unknow) {
-		baseClassExtraFields.add(p_string);
+		baseClassExtraFieldsNames.add(p_string);
 		baseClassDefaultValuesExtraField.put(p_string, p_unknow);
 	}
 
@@ -550,14 +363,57 @@ public class Weka2JPAHelper {
 	 * @see #addExtraField(String, Object, CallbackFieldToNumber)
 	 * @see #addExtraField(String, Object, CallbackFieldToString)
 	 * @see #addExtraField(String, Number)
-	 * @see #addExtraField(String, String) 
+	 * @see #addExtraField(String, String)
 	 * 
 	 * @param p_string
 	 * @param p_unknow
 	 */
 	public void addExtraField(String p_string, String p_unknow) {
-		baseClassExtraFields.add(p_string);
+		baseClassExtraFieldsNames.add(p_string);
 		baseClassDefaultValuesExtraField.put(p_string, p_unknow);
 
+	}
+
+	/**
+	 * Este método permite adicionar valores "incógnitos" (Missing) a um campos
+	 * especifico.
+	 * 
+	 * Este método pode ser chamado quantas vezes for necessário para adicionar
+	 * diversos campos como "incógnitos".
+	 * 
+	 * Os campso que forem "incógnitos" serão valorados com uma ? para que
+	 * durante o processo com o WEKA seja tratados adequadmente.
+	 * 
+	 * Normalmente os campos extras são tratados como "incógnitos", portanto o
+	 * ideal é fornecer o mesmo objeto que foi entregue como sendo o objeto
+	 * padrão do campo extra.
+	 * 
+	 * A melhor forma de se fazer uso deste recurso é fornecer a string "?" como
+	 * valor padrão do campo extra.
+	 * 
+	 * E similar a chamar {@link Instance#setMissing(int)}.
+	 * 
+	 * @param p_defaultValue
+	 *            Valor que será observado, quando ocorrer no campo será
+	 *            substituido pela interrogação no arquivo ARFF.
+	 * @param p_fieldName
+	 *            nome do campo que deve ser tratado como Incognito.
+	 */
+	public <I> void setMissing(String p_fieldName, I p_defaultValue) {
+		mapMissingFields.put(p_fieldName, p_defaultValue);
+	}
+
+	/**
+	 * Define um callback especifico para uma determinada classe.
+	 * 
+	 * Este callback pode ser usado sempre que é encontrado uma classe filha,
+	 * para fornecer sua representação string no lugar de chamar o método
+	 * {@link Object#toString()}
+	 * 
+	 * @param p_class
+	 * @param p_callback
+	 */
+	public void setClassCallBack(@SuppressWarnings("rawtypes") Class p_class, CallbackFieldToString p_callback) {
+		baseClassFieldClassCallBack.put(p_class, p_callback);
 	}
 }

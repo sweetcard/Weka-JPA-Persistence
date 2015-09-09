@@ -22,7 +22,7 @@ package org.weka.jpa.utils;
  *            Tipo do valor referente ao campo
  */
 @FunctionalInterface
-public interface CallbackField<E, R, V> {
+public interface CallbackField<R> {
 
 	/**
 	 * O método {@link #call(String, V)} é chamado quando necessário manipular o
@@ -41,5 +41,5 @@ public interface CallbackField<E, R, V> {
 	 * @return um valor do tipo R que deve ser {@link String} ou um tipo
 	 *         {@link Number}
 	 */
-	public R call(E p_entity, String p_fieldName, V p_fieldValue);
+	public R call(Object p_entity, String p_fieldName, Object p_fieldValue);
 }
