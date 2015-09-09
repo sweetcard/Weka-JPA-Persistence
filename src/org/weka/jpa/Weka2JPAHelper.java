@@ -5,10 +5,14 @@ import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -22,7 +26,7 @@ import javax.persistence.OneToOne;
 import javax.persistence.Query;
 import javax.persistence.Temporal;
 
-import org.slf4j.Logger;
+import org.slf4j.Logger; 
 
 import weka.core.Attribute;
 import weka.core.DenseInstance;
@@ -34,6 +38,8 @@ public class Weka2JPAHelper {
 	private Logger log;
 
 	private EntityManager em;
+
+	private Set<Class<?>> ignoreFieldsTypeOf = new HashSet<>();
 
 	/**
 	 * Caso não se esteja usando CDI (como WELD) é preciso fornecer manualmente
@@ -150,10 +156,10 @@ public class Weka2JPAHelper {
 			Attribute l_att = null;
 			Annotation l_annot;
 			Class<?> l_type = l_field.getType();
-			if(l_field.getName().equals("serialVersionUID")){
+			if (ignoreFieldsTypeOf.contains(l_type) || l_field.getName().equals("serialVersionUID")) {
 				continue;
 			}
-			
+
 			if ((l_annot = l_field.getDeclaredAnnotation(ManyToMany.class)) != null) {
 				l_att = createAttributeFromManyToMany(l_field);
 			} else if ((l_annot = l_field.getDeclaredAnnotation(ManyToOne.class)) != null) {
@@ -329,5 +335,13 @@ public class Weka2JPAHelper {
 		}
 		return l_att;
 	}
-	
+
+	public void ignoreFieldTypeOf(Class<?>... p_classes) {
+		ignoreFieldTypeOf(Arrays.asList(p_classes));
+	}
+
+	public void ignoreFieldTypeOf(Collection<Class<?>> p_classes) {
+		ignoreFieldsTypeOf.addAll(p_classes);
+	}
+
 }
