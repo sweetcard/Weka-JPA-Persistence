@@ -27,7 +27,7 @@ import javax.persistence.OneToOne;
 import javax.persistence.Query;
 import javax.persistence.Temporal;
 
-import org.slf4j.Logger;
+import org.slf4j.Logger; 
 
 import weka.core.Attribute;
 import weka.core.DenseInstance;
