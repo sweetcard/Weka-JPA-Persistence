@@ -16,3 +16,7 @@ What makes me want to develop this project:
 * Not having to worry about parameters of access to the database, since having my integrated application to JPA
 * Use Entities (POJO) JPA and its metadata to generate the ARFF when you need to outsource information for use by third parties.
 * Generate new Entity (POJO) JPA based on information obtained in the ARFF
+
+### WEKA wiki
+
+* https://weka.wikispaces.com/Using+a+new+Java+framework+to+create+ARFF+from+JPA+Entity
