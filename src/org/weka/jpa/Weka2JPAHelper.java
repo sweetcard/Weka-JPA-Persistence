@@ -27,7 +27,7 @@ import javax.persistence.OneToOne;
 import javax.persistence.Query;
 import javax.persistence.Temporal;
 
-import org.slf4j.Logger; 
+import org.slf4j.Logger;
 
 import weka.core.Attribute;
 import weka.core.DenseInstance;
@@ -50,6 +50,13 @@ public class Weka2JPAHelper {
 	 * campo da entidade base
 	 */
 	private Set<String> ignoreFieldsName = new HashSet<>();
+
+	/**
+	 * Flag que permite usar classes que não sejam Entitades de persistencia.
+	 * 
+	 * Veja o método setBaseClassNotEntity() para mais detalhes.
+	 */
+	private boolean basseClassNotEntity;
 
 	/**
 	 * Caso não se esteja usando CDI (como WELD) é preciso fornecer manualmente
@@ -131,7 +138,7 @@ public class Weka2JPAHelper {
 	 */
 	private <E> Instances createAttributesAndInstances(Class<E> p_entityClass, Collection<E> p_list) {
 
-		if (!p_entityClass.isAnnotationPresent(Entity.class)) {
+		if (!basseClassNotEntity && !p_entityClass.isAnnotationPresent(Entity.class)) {
 			throw new NotEntityWEKAJPARuntimeException();
 		}
 
@@ -388,4 +395,21 @@ public class Weka2JPAHelper {
 		ignoreFieldsName.addAll(p_fieldsName);
 	}
 
+	/**
+	 * Permite usar classes que não sejam entidades, neste caso a classe deverá
+	 * vir completamente preenchida. Ou durante uma transação obter dados em
+	 * métodos Lazy.
+	 * 
+	 * ATENÇÃO: Futuramente as classes escravas poderão ser consultadas no banco
+	 * apenas se houver mapeamento para queries ou callbacks
+	 * 
+	 * @param p_flag
+	 */
+	public void setBaseClassNotEntity(boolean p_flag) {
+		basseClassNotEntity = p_flag;
+	}
+
+	public boolean isBaseClassNotEntity() {
+		return basseClassNotEntity;
+	}
 }
