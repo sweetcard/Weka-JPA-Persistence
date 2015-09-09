@@ -152,6 +152,10 @@ public class Weka2JPAHelper {
 			Attribute l_att = null;
 			Annotation l_annot;
 			Class<?> l_type = l_field.getType();
+			if(l_field.getName().equals("serialVersionUID")){
+				continue;
+			}
+			
 			if ((l_annot = l_field.getDeclaredAnnotation(ManyToMany.class)) != null) {
 				l_att = createAttributeFromManyToMany(l_field);
 			} else if ((l_annot = l_field.getDeclaredAnnotation(ManyToOne.class)) != null) {
