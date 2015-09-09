@@ -35,8 +35,6 @@ public class Weka2JPAHelper {
 
 	private EntityManager em;
 
-	private Map<Class<?>, DefaultQueryHandler> mapDefaultQueryHandler;
-
 	/**
 	 * Caso não se esteja usando CDI (como WELD) é preciso fornecer manualmente
 	 * o Logger e EntityManager para a classe;
@@ -331,5 +329,5 @@ public class Weka2JPAHelper {
 		}
 		return l_att;
 	}
-
+	
 }
