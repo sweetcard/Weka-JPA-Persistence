@@ -15,12 +15,12 @@ package org.weka.jpa.utils;
  *         {aminadabebs@gmail.com} e Carlos Barros {carlos.barros22@gmail.com}
  *
  * @param <R>
- *            Tipo do retorno, obrigatório  String
+ *            Tipo do retorno, obrigatório String
  * @param <V>
  *            Tipo do valor referente ao campo
  */
 @FunctionalInterface
-public interface CallbackFieldToString<V> extends CallbackField<String, V> {
+public interface CallbackFieldToString<E, V> extends CallbackField<E, String, V> {
 
 	/**
 	 * O método {@link #call(String, V)} é chamado quando necessário manipular o
@@ -28,6 +28,9 @@ public interface CallbackFieldToString<V> extends CallbackField<String, V> {
 	 * método recebe o nome do campo que forneceu o valor e o valor que deverá
 	 * ser manipullado, que será do tipo V (Generic).
 	 * 
+	 * 
+	 * @param p_entity
+	 *            Entidade a qual pertence o campo e o valor obtido no campo.
 	 * @param p_fieldName
 	 *            Nome do campo que está fornecendo o valor
 	 * @param p_fieldValue
@@ -36,5 +39,5 @@ public interface CallbackFieldToString<V> extends CallbackField<String, V> {
 	 * @return um valor do tipo R que deve ser {@link String} ou um tipo
 	 *         {@link Number}
 	 */
-	public String call(String p_fieldName, V p_fieldValue);
+	public String call(E p_entity, String p_fieldName, V p_fieldValue);
 }

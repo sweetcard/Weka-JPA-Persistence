@@ -69,7 +69,7 @@ public class Weka2JPAHelper {
 	 * {@link org.weka.jpa.utils.CallbackField} trabalha especificamente com o
 	 * nome do campo e se refere especificamente a um campo da classe base.
 	 */
-	private Map<String, CallbackField<?, ?>> baseClassFieldCallBack = new HashMap<>();
+	private Map<String, CallbackField<?, ?, ?>> baseClassFieldCallBack = new HashMap<>();
 
 	/**
 	 * Armazena os campos extras para serem adicionados ao arquivo ARFF com
@@ -473,7 +473,7 @@ public class Weka2JPAHelper {
 	 * @param p_unknow
 	 * @param p_callback
 	 */
-	public <R, V> void addExtraField(String p_string, V p_unknow, CallbackField<R, V> p_callback) {
+	public <E, R, V> void addExtraField(String p_string, V p_unknow, CallbackField<E, R, V> p_callback) {
 		baseClassExtraFields.add(p_string);
 		baseClassDefaultValuesExtraField.put(p_string, p_unknow);
 		baseClassFieldCallBack.put(p_string, p_callback);
@@ -493,7 +493,7 @@ public class Weka2JPAHelper {
 	 * @param p_unknow
 	 * @param p_callback
 	 */
-	public <V> void addExtraField(String p_string, V p_unknow, CallbackFieldToString<V> p_callback) {
+	public <E, V> void addExtraField(String p_string, V p_unknow, CallbackFieldToString<E, V> p_callback) {
 		baseClassExtraFields.add(p_string);
 		baseClassDefaultValuesExtraField.put(p_string, p_unknow);
 		baseClassFieldCallBack.put(p_string, p_callback);
@@ -513,8 +513,8 @@ public class Weka2JPAHelper {
 	 * @param p_unknow
 	 * @param p_callback
 	 */
-	public <R extends Number, V> void addExtraField(String p_string, V p_unknow,
-			CallbackFieldToNumber<R, V> p_callback) {
+	public <E, R extends Number, V> void addExtraField(String p_string, V p_unknow,
+			CallbackFieldToNumber<E, R, V> p_callback) {
 		baseClassExtraFields.add(p_string);
 		baseClassDefaultValuesExtraField.put(p_string, p_unknow);
 		baseClassFieldCallBack.put(p_string, p_callback);
