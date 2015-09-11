@@ -1,5 +1,14 @@
 ### Welcome to Project page from WEKA JPA Persistence Framework.
 
+*** 
+Version 0.0.4 Released
+
+* Configuration Inject with configuration.properties file
+* [CDI Utils](http://socialsla.github.io/CDI-Utils/) library for use with InjectedConfiguration
+* Incognito Attribute
+
+***
+Version 0.0.3 Release:
 
 ***
 
@@ -8,9 +17,7 @@ Finishing the first version that generates data, with this release we can alread
 
 Removed unnecessary dependencies
 
-
 ***
-
 
 What makes me want to develop this project:
 * Not having to worry about parameters of access to the database, since having my integrated application to JPA
