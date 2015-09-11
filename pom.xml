@@ -36,6 +36,11 @@
 		</dependency>
 
 		<dependency>
+			<groupId>javax.enterprise</groupId>
+			<artifactId>cdi-api</artifactId>
+			<version>1.0-SP4</version>
+		</dependency>
+		<dependency>
 			<groupId>javax.inject</groupId>
 			<artifactId>javax.inject</artifactId>
 			<version>1.0-PFD-1</version>
@@ -53,6 +58,11 @@
 			<version>4.0</version>
 		</dependency>
 
+		<dependency>
+			<groupId>br.com.socialsla</groupId>
+			<artifactId>CDI-Utils</artifactId>
+			<version>0.0.1</version>
+		</dependency>
 	</dependencies>
 	<description>
 What makes me want to develop this project:
