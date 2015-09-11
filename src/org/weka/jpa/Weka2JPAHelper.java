@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import javax.enterprise.inject.Default;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.persistence.Entity;
@@ -109,8 +110,8 @@ public class Weka2JPAHelper<E> {
 	 * @param p_logger
 	 * @param p_em
 	 */
-	@Inject
-	public Weka2JPAHelper(Logger p_logger, @Named("WekaPersistence") EntityManager p_em) {
+	@Inject 
+	public Weka2JPAHelper(Logger p_logger, @Default @Named("WekaPersistence")  EntityManager p_em) {
 		log = p_logger;
 		em = p_em;
 	}
