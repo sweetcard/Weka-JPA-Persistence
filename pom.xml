@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>br.com.socialsla</groupId>
 	<artifactId>SocialSLA-WEKA-JPA</artifactId>
-	<version>0.0.4</version>
+	<version>0.0.5</version>
 	<build>
 		<sourceDirectory>src</sourceDirectory>
 		<plugins>
@@ -61,7 +61,7 @@
 		<dependency>
 			<groupId>br.com.socialsla</groupId>
 			<artifactId>CDI-Utils</artifactId>
-			<version>0.0.1</version>
+			<version>0.0.2</version>
 		</dependency>
 	</dependencies>
 	<description>
