@@ -19,6 +19,7 @@ import javax.persistence.EntityManager;
 import javax.persistence.Query;
 
 import org.slf4j.Logger;
+import org.weka.jpa.utils.CallBackExtraAttributeFromFieldToString;
 import org.weka.jpa.utils.CallbackField;
 import org.weka.jpa.utils.CallbackFieldToNumber;
 import org.weka.jpa.utils.CallbackFieldToString;
@@ -30,7 +31,7 @@ import weka.core.converters.ArffSaver;
 
 public class Weka2JPAHelper<E> {
 
-	private Logger log;
+	private final Logger log;
 
 	EntityManager em;
 
@@ -48,14 +49,14 @@ public class Weka2JPAHelper<E> {
 
 	/**
 	 * Flag que permite usar classes que não sejam Entitades de persistencia.
-	 * 
+	 *
 	 * Veja o método {@link #setBaseClassNotEntity(boolean)} para mais detalhes.
 	 */
 	private boolean basseClassNotEntity;
 
 	/**
 	 * Mapa de CallBacks para manipulação especial de campos.
-	 * 
+	 *
 	 * Um callback é responsável por manipular um campo especifico, este
 	 * {@link org.weka.jpa.utils.CallbackField} trabalha especificamente com o
 	 * nome do campo e se refere especificamente a um campo da classe base.
@@ -65,25 +66,31 @@ public class Weka2JPAHelper<E> {
 	/**
 	 * Mapa de CallBacks para manipulação de classes para uso com Relações mais
 	 * complexas de Istancias.
-	 * 
+	 *
 	 * Caso um campo não tenha um callback informado para ele quando cadastrado
 	 * como extrafield, este callback pode ser usado.
-	 * 
+	 *
 	 */
 	Map<Class, CallbackField<?>> baseClassFieldClassCallBack = new HashMap<>();
 
 	/**
 	 * Armazena os campos extras para serem adicionados ao arquivo ARFF com
 	 * referencia a classe base.
-	 * 
+	 *
 	 * veja mais detalhes no método
 	 * {@link #addExtraField(String, Object, CallbackField)}
 	 */
 	Set<String> baseClassExtraFieldsNames = new HashSet<>();
 
 	/**
+	 * Armazena os novos atributos que serão criados com base nos campos da
+	 * entidade que é filha da entidade principal
+	 */
+	Map<String, Map<String, CallBackExtraAttributeFromFieldToString<?>>> extraAttributeFromFieldToString;
+
+	/**
 	 * Armazena o valor padrão para cada campo extra.
-	 * 
+	 *
 	 * Veja mais detalhes no método
 	 * {@link #addExtraField(String, Object, CallbackField)}.
 	 */
@@ -96,6 +103,14 @@ public class Weka2JPAHelper<E> {
 	Map<String, Object> mapMissingValueToFields = new HashMap<>();
 
 	/**
+	 * Armazena nomes de campos e o nome do atributo que deve ser usado.
+	 *
+	 * Quando definido a anotação @WekaAttribute este campo terá procedencia
+	 * sobre ela.
+	 */
+	Map<String, String> mapNewNames = new HashMap<>();
+
+	/**
 	 * Armazena o classe do valor default
 	 */
 	Map<String, Class<?>> baseClassDefaultClassExtraField = new HashMap<>();
@@ -103,7 +118,7 @@ public class Weka2JPAHelper<E> {
 	/**
 	 * Permite que os valores de campos que definidos como Null seja do tipo
 	 * Incognito (?)
-	 * 
+	 *
 	 * O padrão é sempre usar.
 	 */
 	boolean useNullLikeIncognito = true;
@@ -111,31 +126,39 @@ public class Weka2JPAHelper<E> {
 	/**
 	 * Caso não se esteja usando CDI (como WELD) é preciso fornecer manualmente
 	 * o Logger e EntityManager para a classe;
-	 * 
+	 *
 	 * Em containers gerenciados por CDI basta solicitar a instancia da classe e
 	 * esta será injetada com o Logger correto e o EntityManager adequado.
-	 * 
+	 *
 	 * @param p_logger
 	 * @param p_em
 	 */
 	@Inject
-	public Weka2JPAHelper(Logger p_logger,@Default @Named("SocialSLA") EntityManager p_em) {
+	public Weka2JPAHelper(Logger p_logger, @Default @Named("SocialSLA") EntityManager p_em) {
 		log = p_logger;
 		em = p_em;
 	}
 
+	public <T> void addExtraAttributeFromFieldToString(String p_attributeName, String p_fieldName, Class<T> p_class,
+			CallBackExtraAttributeFromFieldToString<T> p_callback) {
+		final Map<String, CallBackExtraAttributeFromFieldToString<?>> l_mapNewAttribute = new HashMap<>();
+
+		l_mapNewAttribute.put(p_fieldName, p_callback);
+		extraAttributeFromFieldToString.put(p_attributeName, l_mapNewAttribute);
+	}
+
 	/**
 	 * Adiciona um campo extra que seja do tipo númerico.
-	 * 
+	 *
 	 * Não precisa ser callback prem veja mais destalhes em
 	 * Weka2JPAHelper#addExtraField(String, Object, Callback)
-	 * 
+	 *
 	 * @see #addExtraField(String, Object, CallbackField)
 	 * @see #addExtraField(String, Object, CallbackFieldToNumber)
 	 * @see #addExtraField(String, Object, CallbackFieldToString)
 	 * @see #addExtraField(String, Number)
 	 * @see #addExtraField(String, String)
-	 * 
+	 *
 	 * @param p_string
 	 * @param p_unknow
 	 */
@@ -146,16 +169,16 @@ public class Weka2JPAHelper<E> {
 
 	/**
 	 * Adiciona um campo extra que seja do tipo númerico.
-	 * 
+	 *
 	 * Não precisa ser callback prem veja mais destalhes em
 	 * Weka2JPAHelper#addExtraField(String, Object, Callback)
-	 * 
+	 *
 	 * @see #addExtraField(String, Object, CallbackField)
 	 * @see #addExtraField(String, Object, CallbackFieldToNumber)
 	 * @see #addExtraField(String, Object, CallbackFieldToString)
 	 * @see #addExtraField(String, Number)
 	 * @see #addExtraField(String, String)
-	 * 
+	 *
 	 * @param p_string
 	 * @param p_unknow
 	 */
@@ -168,13 +191,13 @@ public class Weka2JPAHelper<E> {
 	/**
 	 * Específico para tipos de retorno Number, veja mais detalhes em
 	 * {@link #addExtraFieldToString(String, Object, CallbackField)}
-	 * 
+	 *
 	 * @see #addExtraField(String, Object, CallbackField)
 	 * @see #addExtraField(String, Object, CallbackFieldToNumber)
 	 * @see #addExtraField(String, Object, CallbackFieldToString)
 	 * @see #addExtraField(String, Number)
 	 * @see #addExtraField(String, String)
-	 * 
+	 *
 	 * @param p_string
 	 * @param p_unknow
 	 * @param p_callback
@@ -188,29 +211,29 @@ public class Weka2JPAHelper<E> {
 
 	/**
 	 * Permite adicionar um campo extra a classe base.
-	 * 
+	 *
 	 * Quando for preciso adicionar um campo extra a classe base deve ser usado
 	 * este método informando o valor padrão que se deseja usar neste campo.
-	 * 
+	 *
 	 * O Valor padrão pode ser qualquer tipo de objeto, porém se não for String
 	 * ou Number (ou super classe de Number) deverá existir um
 	 * {@link CallbackField} para manipula-lo e converte-lo em String ou Number.
-	 * 
+	 *
 	 * Examplo: <code>
 	 * l_arffHelper.addExtraField("classification",new Classification(2,"?"), (p_entity, p_field,p_value)->{
 	 * 			return p_value.getName();
 	 *    });
 	 * </code>
-	 * 
+	 *
 	 * Específico para tipos de retorno String, veja mais detalhes em
 	 * {@link #addExtraField(String, Object, CallbackField)}
-	 * 
+	 *
 	 * @see #addExtraField(String, Object, CallbackField)
 	 * @see #addExtraField(String, Object, CallbackFieldToNumber)
 	 * @see #addExtraField(String, Object, CallbackFieldToString)
 	 * @see #addExtraField(String, Number)
 	 * @see #addExtraField(String, String)
-	 * 
+	 *
 	 * @param p_string
 	 * @param p_unknow
 	 * @param p_callback
@@ -224,7 +247,7 @@ public class Weka2JPAHelper<E> {
 	/**
 	 * Cria as instancias usadas para construir a seção dados, mas antes
 	 * constroi o cabeçalho com as informações de atributos do arquivo ARFF
-	 * 
+	 *
 	 * @param p_entityClass
 	 * @param p_list
 	 * @return
@@ -235,18 +258,18 @@ public class Weka2JPAHelper<E> {
 			throw new NotEntityWEKAJPARuntimeException();
 		}
 
-		Weka2JPAAttributeProcessor<E> l_processor = new Weka2JPAAttributeProcessor<E>(p_entityClass, this);
+		final Weka2JPAAttributeProcessor<E> l_processor = new Weka2JPAAttributeProcessor<E>(p_entityClass, this);
 
-		ArrayList<Attribute> l_atts = l_processor.createAttributes();
+		final ArrayList<Attribute> l_atts = l_processor.createAttributes();
 
-		Instances l_data = populateInstanceWithData(l_processor, l_atts, p_list);
+		final Instances l_data = populateInstanceWithData(l_processor, l_atts, p_list);
 
 		return l_data;
 	}
 
 	/**
 	 * Permite informar o nome dos campos que devem ser ignorados.
-	 * 
+	 *
 	 * @see ignoreFieldName(Collection<String>)
 	 * @param p_fieldsName
 	 */
@@ -256,7 +279,7 @@ public class Weka2JPAHelper<E> {
 
 	/**
 	 * Permite informar uma colleção de nomes de campos que devem ser ignorados.
-	 * 
+	 *
 	 * @see ignoreFieldName(String...)
 	 * @param p_fieldsName
 	 */
@@ -267,7 +290,7 @@ public class Weka2JPAHelper<E> {
 	/**
 	 * Permite informar classes par que os campos que forem do mesmo tipo sejam
 	 * ignorados.
-	 * 
+	 *
 	 * @see ignoreFieldTypeOf(Collection<Class>)
 	 * @param p_classes
 	 */
@@ -278,7 +301,7 @@ public class Weka2JPAHelper<E> {
 	/**
 	 * Permite informar uma coleção de classes para que os campos que forem do
 	 * mesmo tipo em cada classe informada sejam ignorados.
-	 * 
+	 *
 	 * @see ignoreFieldTypeOf(Class...)
 	 * @param p_classes
 	 */
@@ -300,9 +323,9 @@ public class Weka2JPAHelper<E> {
 		Collection<E> l_list;
 		if (p_list == null) {
 			log.info("Instancias obtidos diretamente pelo JPA");
-			String l_qlString = "SELECT E FROM " + l_processor.getRelationBaseName() + " E ";
+			final String l_qlString = "SELECT E FROM " + l_processor.getRelationBaseName() + " E ";
 
-			Query l_query = em.createQuery(l_qlString);
+			final Query l_query = em.createQuery(l_qlString);
 
 			l_list = l_query.getResultList();
 		} else {
@@ -310,7 +333,7 @@ public class Weka2JPAHelper<E> {
 			l_list = p_list;
 		}
 
-		Instances l_instances = l_processor.createInstances(p_atts, l_list);
+		final Instances l_instances = l_processor.createInstances(p_atts, l_list);
 
 		return l_instances;
 	}
@@ -318,24 +341,24 @@ public class Weka2JPAHelper<E> {
 	/**
 	 * Cria o arquivo ARFF com base na classe da entidade informada, consultando
 	 * a camada de persitencia injetada pela lista de objetos.
-	 * 
+	 *
 	 * Deve ser informado o nome do arquivo a ser criado, a classe da entidade
 	 * que é a base e referencia para construir o arquivo ARFF, esta classe será
 	 * usada para obter informações base dos parametros do Arquivo ARFF.
-	 * 
+	 *
 	 * Se for informado a Collection esta deverá ser uma coleção de instancias
 	 * da classe informada como base, caso não informado a classe base será
 	 * usasda para efetuar um "SELECT" pelo JPA na camada de persistência.
-	 * 
+	 *
 	 * @param p_file
 	 * @param p_entityClass
 	 * @throws IOException
 	 */
 	public void save(File p_file, Class<E> p_entityClass) throws IOException {
 
-		Instances l_data = createAttributesAndInstances(p_entityClass, null);
+		final Instances l_data = createAttributesAndInstances(p_entityClass, null);
 
-		ArffSaver saver = new ArffSaver();
+		final ArffSaver saver = new ArffSaver();
 		saver.setInstances(l_data);
 		saver.setFile(p_file);
 
@@ -345,24 +368,24 @@ public class Weka2JPAHelper<E> {
 	/**
 	 * Cria o arquivo ARFF com base na classe da entidade informada, e a lista
 	 * de entidades instancianadas.
-	 * 
+	 *
 	 * Deve ser informado o nome do arquivo a ser criado, a classe da entidade
 	 * que é a base e referencia para construir o arquivo ARFF, esta classe será
 	 * usada para obter informações base dos parametros do Arquivo ARFF.
-	 * 
+	 *
 	 * Se for informado a Collection esta deverá ser uma coleção de instancias
 	 * da classe informada como base, caso não informado a classe base será
 	 * usasda para efetuar um "SELECT" pelo JPA na camada de persistência.
-	 * 
+	 *
 	 * @param p_file
 	 * @param p_entityClass
 	 * @param p_list
 	 * @throws IOException
 	 */
 	public void save(File p_file, Class<E> p_entityClass, Collection<E> p_list) throws IOException {
-		Instances l_data = createAttributesAndInstances(p_entityClass, p_list);
+		final Instances l_data = createAttributesAndInstances(p_entityClass, p_list);
 
-		ArffSaver saver = new ArffSaver();
+		final ArffSaver saver = new ArffSaver();
 		saver.setInstances(l_data);
 		saver.setFile(p_file);
 
@@ -373,10 +396,10 @@ public class Weka2JPAHelper<E> {
 	 * Permite usar classes que não sejam entidades, neste caso a classe deverá
 	 * vir completamente preenchida. Ou durante uma transação obter dados em
 	 * métodos Lazy.
-	 * 
+	 *
 	 * ATENÇÃO: Futuramente as classes escravas poderão ser consultadas no banco
 	 * apenas se houver mapeamento para queries ou callbacks
-	 * 
+	 *
 	 * @param p_flag
 	 */
 	public void setBaseClassNotEntity(boolean p_flag) {
@@ -386,11 +409,11 @@ public class Weka2JPAHelper<E> {
 	/**
 	 * Define um callback especifico para converter uma determinada classe em
 	 * String.
-	 * 
+	 *
 	 * Este callback pode ser usado sempre que é encontrado uma classe filha,
 	 * para fornecer sua representação string no lugar de chamar o método
 	 * {@link Object#toString()}
-	 * 
+	 *
 	 * @param p_class
 	 * @param p_callback
 	 */
@@ -402,11 +425,11 @@ public class Weka2JPAHelper<E> {
 	/**
 	 * Define um callback especifico para converter uma determinada classe em
 	 * String.
-	 * 
+	 *
 	 * Este callback pode ser usado sempre que é encontrado uma classe filha,
 	 * para fornecer sua representação string no lugar de chamar o método
 	 * {@link Object#toString()}
-	 * 
+	 *
 	 * @param p_class
 	 * @param p_callback
 	 */
@@ -418,25 +441,25 @@ public class Weka2JPAHelper<E> {
 	/**
 	 * Este método permite adicionar valores "incógnitos" (Missing) a um campos
 	 * especifico.
-	 * 
+	 *
 	 * Este método pode ser chamado quantas vezes for necessário para adicionar
 	 * diversos campos como "incógnitos".
-	 * 
+	 *
 	 * Os campos que forem "incógnitos" serão valorados com uma ? para que
 	 * durante o processo com o WEKA seja tratados adequadmente.
-	 * 
+	 *
 	 * Normalmente os campos extras são tratados como "incógnitos", portanto o
 	 * ideal é fornecer o mesmo objeto que foi entregue como sendo o objeto
 	 * padrão do campo extra.
-	 * 
+	 *
 	 * A melhor forma de se fazer uso deste recurso é fornecer a string "?" como
 	 * valor padrão do campo extra.
-	 * 
+	 *
 	 * E similar a chamar {@link Instance#setMissing(int)}.
-	 * 
+	 *
 	 * TODO: permitir adicionar mais de um valor para o mesmo campo para ser
 	 * considerado Incógnito.
-	 * 
+	 *
 	 * @param p_defaultValue
 	 *            Valor que será observado, quando ocorrer no campo será
 	 *            substituido pela interrogação no arquivo ARFF.
@@ -448,9 +471,28 @@ public class Weka2JPAHelper<E> {
 	}
 
 	/**
+	 * Adiciona um novo nome para o campo, este nome será usado como o nome do
+	 * atributo.
+	 *
+	 * Esta nome terá precedencia sobre a anotação WekaAttribute que será
+	 * criada.
+	 *
+	 * TODO: como tratar conflitos de nomes oriundos de classes filhas?
+	 *
+	 * @param p_oldFieldName
+	 *            Nome atual do campo
+	 * @param p_newAttributeName
+	 *            Nome que será usado no atributo.
+	 * @return
+	 */
+	public String setNewName(String p_oldFieldName, String p_newAttributeName) {
+		return mapNewNames.put(p_oldFieldName, p_newAttributeName);
+	}
+
+	/**
 	 * permite definir se os valores dos campos que retornarem null sejam do
 	 * tipo Incognito (?)
-	 * 
+	 *
 	 * @param p_flag
 	 */
 	public void setNullLikeIncognito(boolean p_flag) {
