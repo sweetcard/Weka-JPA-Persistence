@@ -27,14 +27,14 @@ import weka.core.Instances;
 
 public class Weka2JPAAttributeProcessor<E> {
 
-	private Logger log = LoggerFactory.getLogger(this.getClass());
-	private Weka2JPAHelper<E> helper;
-	private String relationBaseName;
-	private Class<E> entityClass;
-	private Field[] fields;
-	private HashMap<Attribute, String> mapAttributeToExtraField;
-	private HashMap<Attribute, List<String>> mapAttributeToRefValues;
-	private HashMap<Attribute, Field> mapAttributeToField;
+	private final Logger log = LoggerFactory.getLogger(this.getClass());
+	private final Weka2JPAHelper<E> helper;
+	private final String relationBaseName;
+	private final Class<E> entityClass;
+	private final Field[] fields;
+	private final HashMap<Attribute, String> mapAttributeToExtraField;
+	private final HashMap<Attribute, List<String>> mapAttributeToRefValues;
+	private final HashMap<Attribute, Field> mapAttributeToField;
 
 	public Weka2JPAAttributeProcessor(Class<E> p_entityClass, Weka2JPAHelper<E> p_helper) {
 
@@ -59,21 +59,22 @@ public class Weka2JPAAttributeProcessor<E> {
 	/**
 	 * Verificar se o objeto obtido no campo deve ser tornar este campo como um
 	 * incognito
-	 * 
+	 *
 	 * @param p_fieldName
 	 * @param l_string
 	 * @return
 	 */
 	private boolean checkMissingFieldValue(String p_fieldName, Object l_string) {
-		Object l_value = helper.mapMissingValueToFields.get(p_fieldName);
-		if (l_value == null)
+		final Object l_value = helper.mapMissingValueToFields.get(p_fieldName);
+		if (l_value == null) {
 			return false;
+		}
 		return l_value.equals(l_string);
 	}
 
 	private Attribute createAttributeFromColumn(Field p_field) {
 		// TODO Auto-generated method stub
-		String l_name = createNameAttribute(p_field);
+		final String l_name = createNameAttribute(p_field);
 		Attribute l_att = null;
 		if (p_field.getType() == String.class) {
 			l_att = new Attribute(l_name, (ArrayList<String>) null);
@@ -85,7 +86,7 @@ public class Weka2JPAAttributeProcessor<E> {
 
 	private Attribute createAttributeFromManyToMany(Field p_field) {
 
-		String l_name = createNameAttribute(p_field);
+		final String l_name = createNameAttribute(p_field);
 
 		Attribute l_att = null;
 		if (p_field.getType() == String.class) {
@@ -99,30 +100,30 @@ public class Weka2JPAAttributeProcessor<E> {
 	/**
 	 * Cria um atributo com base em um campo da Entidade de persistencia que
 	 * seja do tipo ManyToOne.
-	 * 
+	 *
 	 * Este método consulta no banco de dados para encontrar as entidades
 	 * relacionadas.
-	 * 
+	 *
 	 * TODO: permitir que seja criado um banco de entidades relacionadas para
 	 * ser usada no lugar da consulta no banco.
-	 * 
+	 *
 	 * @param p_field
 	 * @return
 	 */
 	private Attribute createAttributeFromManyToOne(Field p_field) {
 
 		@SuppressWarnings("rawtypes")
-		ArrayList l_refValues = new ArrayList();
+		final ArrayList l_refValues = new ArrayList();
 
-		String l_qlString = "SELECT E FROM " + p_field.getType().getSimpleName() + " E ";
-		Query l_query = helper.em.createQuery(l_qlString);
+		final String l_qlString = "SELECT E FROM " + p_field.getType().getSimpleName() + " E ";
+		final Query l_query = helper.em.createQuery(l_qlString);
 		@SuppressWarnings("unchecked")
-		List<E> l_list = l_query.getResultList();
-		String l_fieldName = p_field.getName();
+		final List<E> l_list = l_query.getResultList();
+		final String l_fieldName = p_field.getName();
 
-		CallbackField<?> l_callback = getCallbackClassField(p_field);
+		final CallbackField<?> l_callback = getCallbackClassField(p_field);
 
-		for (Object l_entityRef : l_list) {
+		for (final Object l_entityRef : l_list) {
 
 			// TODO: how to identify the best way to convert the child
 			// entity in a string or number to be referenced, in
@@ -137,22 +138,22 @@ public class Weka2JPAAttributeProcessor<E> {
 			// noted as a Column type, Temporal, Id, etc.
 			if (l_callback != null) {
 
-				String l_str = (String) l_callback.call(null, l_fieldName, l_entityRef);
+				final String l_str = (String) l_callback.call(null, l_fieldName, l_entityRef);
 				l_refValues.add(l_str);
 			} else {
-				String l_str = l_entityRef.toString();
+				final String l_str = l_entityRef.toString();
 				l_refValues.add(l_str);
 			}
 		}
-		Attribute l_att = createAttributeFromManyToOne(p_field, l_refValues);
+		final Attribute l_att = createAttributeFromManyToOne(p_field, l_refValues);
 
 		return l_att;
 	}
 
 	private Attribute createAttributeFromManyToOne(Field p_field, List<String> p_refListValue) {
-		String l_name = createNameAttribute(p_field);
+		final String l_name = createNameAttribute(p_field);
 
-		Attribute l_att = new Attribute(l_name, p_refListValue);
+		final Attribute l_att = new Attribute(l_name, p_refListValue);
 		mapAttributeToRefValues.put(l_att, p_refListValue);
 		return l_att;
 	}
@@ -175,7 +176,7 @@ public class Weka2JPAAttributeProcessor<E> {
 	/**
 	 * Cria os atributos usados no cabeçalho e seus metadados para aferição dos
 	 * tipos.
-	 * 
+	 *
 	 * @param p_fields
 	 * @param p_mapAttributeToRefVAlues
 	 * @param p_mapAttributeToField
@@ -183,12 +184,12 @@ public class Weka2JPAAttributeProcessor<E> {
 	 */
 	public ArrayList<Attribute> createAttributes() {
 
-		ArrayList<Attribute> l_atts = new ArrayList<Attribute>(fields.length);
+		final ArrayList<Attribute> l_atts = new ArrayList<Attribute>(fields.length);
 
-		for (Field l_field : fields) {
+		for (final Field l_field : fields) {
 			Attribute l_att = null;
-			Class<?> l_typeField = l_field.getType();
-			String l_nameField = l_field.getName();
+			final Class<?> l_typeField = l_field.getType();
+			final String l_nameField = l_field.getName();
 			if (helper.ignoreFieldsTypeOf.contains(l_typeField) || helper.ignoreFieldsName.contains(l_nameField)
 					|| l_nameField.equals("serialVersionUID")) {
 				continue;
@@ -232,19 +233,19 @@ public class Weka2JPAAttributeProcessor<E> {
 
 	/**
 	 * Cria os atributos relativos aos compos extras adicionados.
-	 * 
+	 *
 	 * @param p_atts
-	 * 
+	 *
 	 * @param p_atts
 	 */
 	private void createAttributesExtraFields(ArrayList<Attribute> p_atts) {
 
 		log.info("Criando Atributos Extras");
 
-		for (String l_extraField : getExtraFieldsNames()) {
+		for (final String l_extraField : getExtraFieldsNames()) {
 			Attribute l_att = null;
 
-			Object l_defaultValue = getDefaultValue(l_extraField);
+			final Object l_defaultValue = getDefaultValue(l_extraField);
 			if (l_defaultValue == null) {
 				l_att = new Attribute(l_extraField);
 			} else if (l_defaultValue instanceof String) {
@@ -253,7 +254,7 @@ public class Weka2JPAAttributeProcessor<E> {
 				l_att = new Attribute(l_extraField);
 			} else {
 				@SuppressWarnings({ "rawtypes" })
-				CallbackField l_callback = getCallBackExtraField(l_extraField);
+				final CallbackField l_callback = getCallBackExtraField(l_extraField);
 
 				if (l_callback instanceof CallbackFieldToNumber) {
 					l_att = new Attribute(l_extraField);
@@ -268,11 +269,11 @@ public class Weka2JPAAttributeProcessor<E> {
 	}
 
 	public Instances createInstances(ArrayList<Attribute> p_atts, Collection<E> l_list) {
-		Instances l_instances = new Instances(getRelationBaseName(), p_atts, 0);
+		final Instances l_instances = new Instances(getRelationBaseName(), p_atts, 0);
 		for (final E l_object : l_list) {
-			double[] l_vals = new double[l_instances.numAttributes()];
+			final double[] l_vals = new double[l_instances.numAttributes()];
 
-			ArrayList<Attribute> l_incoginitoAttributes = new ArrayList<>();
+			final ArrayList<Attribute> l_incoginitoAttributes = new ArrayList<>();
 			processValueFromEachField(l_object, l_instances, l_vals, p_atts, l_incoginitoAttributes);
 
 			processValueFromEachExtraField(l_object, l_instances, l_vals, p_atts, l_incoginitoAttributes);
@@ -281,8 +282,8 @@ public class Weka2JPAAttributeProcessor<E> {
 			// DenseInstance,
 			// SparseInstance,
 			// BinarySparseInstance
-			DenseInstance l_instance = new DenseInstance(1.0, l_vals);
-			for (Attribute l_att : l_incoginitoAttributes) {
+			final DenseInstance l_instance = new DenseInstance(1.0, l_vals);
+			for (final Attribute l_att : l_incoginitoAttributes) {
 				l_instance.setMissing(l_att.index());
 			}
 			l_instances.add(l_instance);
@@ -293,20 +294,22 @@ public class Weka2JPAAttributeProcessor<E> {
 
 	/**
 	 * Cria o nome do Attributo para uso no arquivo ARFF
-	 * 
+	 *
 	 * Cria o nome do Atributo com base na anotação Column, caso ela não exista
 	 * ou o nome não seja informado utiliza o nome do campo informado.
-	 * 
+	 *
 	 * @param p_field
 	 * @return
 	 */
 	private String createNameAttribute(Field p_field) {
-		Column l_annot = p_field.getDeclaredAnnotation(Column.class);
+		final Column l_annot = p_field.getDeclaredAnnotation(Column.class);
 		String l_name = null;
-		if (l_annot != null)
+		if (l_annot != null) {
 			l_name = l_annot.name();
-		if (l_name == null || l_name.isEmpty())
+		}
+		if (l_name == null || l_name.isEmpty()) {
 			l_name = p_field.getName();
+		}
 
 		return l_name;
 	}
@@ -314,13 +317,13 @@ public class Weka2JPAAttributeProcessor<E> {
 	/**
 	 * Obtem o CallBack para um determinado campo de uma entidade com base no
 	 * nome do campo
-	 * 
+	 *
 	 * @param l_fieldName
 	 * @return
 	 */
 	private CallbackField<?> getCallBackClass(String l_fieldName) {
 
-		CallbackField<?> l_callback = helper.baseClassFieldClassCallBack.get(l_fieldName);
+		final CallbackField<?> l_callback = helper.baseClassFieldClassCallBack.get(l_fieldName);
 		return l_callback;
 	}
 
@@ -330,15 +333,16 @@ public class Weka2JPAAttributeProcessor<E> {
 
 	/**
 	 * Obtem o CallBack para um determinado campo da entidade.
-	 * 
+	 *
 	 * @param p_field
 	 * @return
 	 */
 	private CallbackField<?> getCallbackClassField(Field p_field) {
-		String l_fieldName = p_field.getName();
+		final String l_fieldName = p_field.getName();
 		CallbackField<?> l_callback = getCallBackClass(l_fieldName);
-		if (l_callback == null)
+		if (l_callback == null) {
 			l_callback = getCallbackClassField(p_field.getType());
+		}
 		return l_callback;
 	}
 
@@ -349,7 +353,7 @@ public class Weka2JPAAttributeProcessor<E> {
 
 	/**
 	 * Retorna a Classe padrão de um determinado campo extra informado.
-	 * 
+	 *
 	 * @param p_field
 	 * @return
 	 */
@@ -359,7 +363,7 @@ public class Weka2JPAAttributeProcessor<E> {
 
 	/**
 	 * Retorna o valor padrão para um determinado campo.
-	 * 
+	 *
 	 * @param l_fieldName
 	 * @return
 	 */
@@ -379,7 +383,7 @@ public class Weka2JPAAttributeProcessor<E> {
 	/**
 	 * Nome será usada como referencia para construir o campo \@Relation do
 	 * arquivo ARFF
-	 * 
+	 *
 	 * @return
 	 */
 	public String getRelationBaseName() {
@@ -388,10 +392,10 @@ public class Weka2JPAAttributeProcessor<E> {
 
 	/**
 	 * Processa os valores referentes aos compos extras.
-	 * 
+	 *
 	 * Esta função é altamente dependente dos callbacks para gerar novos
 	 * valores.
-	 * 
+	 *
 	 * @param p_entity
 	 * @param p_instances
 	 * @param p_listVals
@@ -406,50 +410,56 @@ public class Weka2JPAAttributeProcessor<E> {
 
 			try {
 
-				int l_attIndex = p_atts.indexOf(p_att);
+				final int l_attIndex = p_atts.indexOf(p_att);
 
 				double l_val = 0;
 
-				CallbackField<?> l_callBack = getCallBackExtraField(p_fieldName);
+				final CallbackField<?> l_callBack = getCallBackExtraField(p_fieldName);
 
-				Object l_defaultValue = getDefaultValue(p_fieldName);
+				final Object l_defaultValue = getDefaultValue(p_fieldName);
 
 				boolean l_incognito = false;
 
 				if (checkMissingFieldValue(p_fieldName, l_defaultValue)
-						|| (useNullLikeIncognito() && l_defaultValue == null))
+						|| useNullLikeIncognito() && l_defaultValue == null) {
 					l_incognito = true;
+				}
 
 				if (l_callBack instanceof CallbackFieldToNumber) {
 					@SuppressWarnings("rawtypes")
-					Number l_value = (Number) ((CallbackFieldToNumber) l_callBack).call(p_entity, p_fieldName,
+					final Number l_value = (Number) ((CallbackFieldToNumber) l_callBack).call(p_entity, p_fieldName,
 							l_defaultValue);
-					
+
 					if (l_value != null) {
 						l_val = l_value.doubleValue();
 
-					} else if (useNullLikeIncognito())
+					} else if (useNullLikeIncognito()) {
 						l_incognito = true;
+					}
 
 				} else if (l_callBack instanceof CallbackFieldToString) {
-					String l_string = ((CallbackFieldToString) l_callBack).call(p_entity, p_fieldName, l_defaultValue);
-					
-					if (l_string != null)
+					final String l_string = ((CallbackFieldToString) l_callBack).call(p_entity, p_fieldName,
+							l_defaultValue);
+
+					if (l_string != null) {
 						l_val = p_instances.attribute(l_attIndex).addStringValue(l_string);
-					else if (useNullLikeIncognito())
+					} else if (useNullLikeIncognito()) {
 						l_incognito = true;
+					}
 
 				} else if (l_defaultValue != null) {
 					l_val = p_instances.attribute(l_attIndex).addStringValue(l_defaultValue.toString());
-				} else if (useNullLikeIncognito())
+				} else if (useNullLikeIncognito()) {
 					l_incognito = true;
+				}
 
-				if (l_incognito)
+				if (l_incognito) {
 					p_incoginitoAttributes.add(p_att);
-				
+				}
+
 				p_listVals[l_attIndex] = l_val;
-				
-			} catch (Exception e) {
+
+			} catch (final Exception e) {
 				// does nothing ignores the value?
 				log.info(e.getMessage());
 			}
@@ -464,66 +474,73 @@ public class Weka2JPAAttributeProcessor<E> {
 
 			try {
 
-				int l_attIndex = p_atts.indexOf(p_att);
+				final int l_attIndex = p_atts.indexOf(p_att);
 
-				Class<?> p_fieldType = p_field.getType();
+				final Class<?> p_fieldType = p_field.getType();
 				p_field.setAccessible(true);
 
 				double l_val = 0;
 				boolean l_incognito = false;
 				if (p_fieldType == String.class) {
-					String l_string = (String) p_field.get(p_entityObj);
+					final String l_string = (String) p_field.get(p_entityObj);
 
 					if (l_string != null) {
 						l_val = p_instances.attribute(l_attIndex).addStringValue(l_string);
 
-						if (checkMissingFieldValue(p_field.getName(), l_string))
+						if (checkMissingFieldValue(p_field.getName(), l_string)) {
 							l_incognito = true;
+						}
 
-					} else if (useNullLikeIncognito())
+					} else if (useNullLikeIncognito()) {
 						l_incognito = true;
+					}
 
 				} else if (p_fieldType.isAssignableFrom(Number.class)) {
-					Double l_double = p_field.getDouble(p_entityObj);
+					final Double l_double = p_field.getDouble(p_entityObj);
 
 					if (l_double != null) {
 						l_val = l_double;
 
-						if (checkMissingFieldValue(p_field.getName(), l_double))
+						if (checkMissingFieldValue(p_field.getName(), l_double)) {
 							l_incognito = true;
+						}
 
-					} else if (useNullLikeIncognito())
+					} else if (useNullLikeIncognito()) {
 						l_incognito = true;
+					}
 
 				} else {
-					List<String> l_refValues = getReferenceValues(p_att);
-					Object l_value = p_field.get(p_entityObj);
+					final List<String> l_refValues = getReferenceValues(p_att);
+					final Object l_value = p_field.get(p_entityObj);
 
 					String l_strValue;
 					if (l_value instanceof String) {
 						l_strValue = (String) l_value;
 					} else {
-						CallbackField<?> l_callback = getCallbackClassField(p_field);
+						final CallbackField<?> l_callback = getCallbackClassField(p_field);
 
-						String l_fieldName = p_field.getName();
-						if (l_callback != null)
+						final String l_fieldName = p_field.getName();
+						if (l_callback != null) {
 							l_strValue = (String) l_callback.call(p_entityObj, l_fieldName, l_value);
-						else
+						} else {
 							l_strValue = l_value.toString();
+						}
 					}
 
-					if ((useNullLikeIncognito() && l_strValue == null)
-							|| checkMissingFieldValue(p_field.getName(), l_value))
+					if (useNullLikeIncognito() && l_strValue == null
+							|| checkMissingFieldValue(p_field.getName(), l_value)) {
 						l_incognito = true;
+					}
 
 					l_val = l_refValues.indexOf(l_strValue);
 				}
-				if (l_incognito)
+				if (l_incognito) {
 					p_incoginitoAttributes.add(p_att);
+				}
 
 				p_vals[l_attIndex] = l_val;
 
-			} catch (Exception e) {
+			} catch (final Exception e) {
 				// does nothing ignores the value?
 				log.warn(e.getMessage());
 			}
@@ -532,7 +549,7 @@ public class Weka2JPAAttributeProcessor<E> {
 
 	/**
 	 * Retorna se deve ou não usar o valor null como Incognito;
-	 * 
+	 *
 	 * @return
 	 */
 	private boolean useNullLikeIncognito() {
