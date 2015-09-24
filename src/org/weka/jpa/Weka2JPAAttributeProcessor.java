@@ -4,6 +4,7 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -15,61 +16,69 @@ import javax.persistence.OneToOne;
 import javax.persistence.Query;
 import javax.persistence.Temporal;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.commons.lang3.NotImplementedException;
 import org.weka.jpa.utils.CallbackField;
 import org.weka.jpa.utils.CallbackFieldToNumber;
-import org.weka.jpa.utils.CallbackFieldToString;
+import org.weka.jpa.utils.ExtraAttributesFromFieldToString;
 
 import weka.core.Attribute;
-import weka.core.DenseInstance;
-import weka.core.Instances;
 
-public class Weka2JPAAttributeProcessor<E> {
+public class Weka2JPAAttributeProcessor<E> extends Weka2JPAProcessor<E> {
 
-	private final Logger log = LoggerFactory.getLogger(this.getClass());
-	private final Weka2JPAHelper<E> helper;
-	private final String relationBaseName;
-	private final Class<E> entityClass;
 	private final Field[] fields;
-	private final HashMap<Attribute, String> mapAttributeToExtraField;
-	private final HashMap<Attribute, List<String>> mapAttributeToRefValues;
-	private final HashMap<Attribute, Field> mapAttributeToField;
+
+	/**
+	 *
+	 */
+	private final HashMap<Attribute, String> mapExtraAttributeFromSlaveField;
 
 	public Weka2JPAAttributeProcessor(Class<E> p_entityClass, Weka2JPAHelper<E> p_helper) {
 
-		helper = p_helper;
-
-		// log.info("Populando Instancias com relação aos atributos: " +
-		// p_atts);
-		relationBaseName = p_entityClass.getSimpleName();
-		log.info("Instancias Relacionadas a " + relationBaseName);
-
-		entityClass = p_entityClass;
+		super(p_entityClass, p_helper);
 
 		fields = p_entityClass.getDeclaredFields();
 		log.info("Campos Declarados: " + fields);
 
-		mapAttributeToExtraField = new HashMap<>(getExtraFieldsNames().size());
-		mapAttributeToRefValues = new HashMap<>(fields.length);
-		mapAttributeToField = new HashMap<>(fields.length);
+		mapExtraAttributeFromSlaveField = new HashMap<>(getAllNameExtraAttributesFromFieldToString().size());
 
 	}
 
-	/**
-	 * Verificar se o objeto obtido no campo deve ser tornar este campo como um
-	 * incognito
-	 *
-	 * @param p_fieldName
-	 * @param l_string
-	 * @return
-	 */
-	private boolean checkMissingFieldValue(String p_fieldName, Object l_string) {
-		final Object l_value = helper.mapMissingValueToFields.get(p_fieldName);
-		if (l_value == null) {
-			return false;
+	private void createAttribute(final ArrayList<Attribute> l_atts, final Field l_field,
+			final ArrayList<Field> p_fieldsForGetExtraAttributes) {
+		Attribute l_att = null;
+		final Class<?> l_typeField = l_field.getType();
+		final String l_nameField = l_field.getName();
+		if (helper.ignoreFieldsTypeOf(l_typeField) || helper.ignoreFieldsName(l_nameField)
+				|| l_nameField.equals("serialVersionUID")) {
+			return;
 		}
-		return l_value.equals(l_string);
+
+		if (l_field.getDeclaredAnnotation(Column.class) != null) {
+			l_att = createAttributeFromColumn(l_field);
+		} else if (l_field.getDeclaredAnnotation(ManyToOne.class) != null) {
+			if (!hasExtraAttributeCallBackToField(l_field)) {
+				l_att = createAttributeFromManyToOne(l_field);
+			} else {
+				p_fieldsForGetExtraAttributes.add(l_field);
+				return;
+			}
+		} else if (l_field.getDeclaredAnnotation(OneToMany.class) != null) {
+			l_att = createAttributeFromOneToMany(l_field);
+			return;
+		} else if (l_field.getDeclaredAnnotation(OneToOne.class) != null) {
+			l_att = createAttributeFromOneToOne(l_field);
+			return;
+		} else if (l_field.getDeclaredAnnotation(ManyToMany.class) != null) {
+			l_att = createAttributeFromManyToMany(l_field);
+			return;
+		} else if (l_field.getDeclaredAnnotation(Temporal.class) != null) {
+			l_att = createAttributeFromTemporal(l_field);
+			return;
+		} else {
+			return;
+		}
+		l_atts.add(l_att);
+		putAttributeToField(l_att, l_field);
 	}
 
 	private Attribute createAttributeFromColumn(Field p_field) {
@@ -111,50 +120,68 @@ public class Weka2JPAAttributeProcessor<E> {
 	 * @return
 	 */
 	private Attribute createAttributeFromManyToOne(Field p_field) {
-
-		@SuppressWarnings("rawtypes")
-		final ArrayList l_refValues = new ArrayList();
-
-		final String l_qlString = "SELECT E FROM " + p_field.getType().getSimpleName() + " E ";
-		final Query l_query = helper.em.createQuery(l_qlString);
-		@SuppressWarnings("unchecked")
-		final List<E> l_list = l_query.getResultList();
 		final String l_fieldName = p_field.getName();
 
 		final CallbackField<?> l_callback = getCallbackClassField(p_field);
 
-		for (final Object l_entityRef : l_list) {
+		Attribute l_att = null;
+		if (l_callback instanceof CallbackFieldToNumber) {
 
-			// TODO: how to identify the best way to convert the child
-			// entity in a string or number to be referenced, in
-			// addition you need to worry about the correct order of
-			// obtaining or using an index synchronized with the
-			// database.
-			// TODO: An alternative would be the annotation specifies
-			// Weka to indicate a method for obtaining a string or
-			// double / float representing the object. Remember that
-			// this field should also be indexed and stored in the
-			// database, Commission is therefore proposing should be
-			// noted as a Column type, Temporal, Id, etc.
-			if (l_callback != null) {
+			final String l_name = createNameAttribute(p_field);
 
-				final String l_str = (String) l_callback.call(null, l_fieldName, l_entityRef);
-				l_refValues.add(l_str);
-			} else {
-				final String l_str = l_entityRef.toString();
-				l_refValues.add(l_str);
+			l_att = new Attribute(l_name);
+
+		} else {
+			final List<String> l_refValues = new ArrayList<>();
+
+			// TODO CRIAR CALLBACK PARA OBTER LISTA, VEJA A LISTA DE TAREFAS.
+			final String l_qlString = "SELECT E FROM " + p_field.getType().getSimpleName() + " E ";
+			final Query l_query = createQuery(l_qlString);
+
+			@SuppressWarnings("unchecked")
+			final List<E> l_list = l_query.getResultList();
+
+			for (final Object l_entityRef : l_list) {
+
+				// TODO: how to identify the best way to convert the child
+				// entity in a string or number to be referenced, in
+				// addition you need to worry about the correct order of
+				// obtaining or using an index synchronized with the
+				// database.
+				// TODO: An alternative would be the annotation specifies
+				// Weka to indicate a method for obtaining a string or
+				// double / float representing the object. Remember that
+				// this field should also be indexed and stored in the
+				// database, Commission is therefore proposing should be
+				// noted as a Column type, Temporal, Id, etc.
+				if (l_callback != null) {
+					final String l_str = (String) l_callback.call(null, l_fieldName, l_entityRef);
+					l_refValues.add(l_str);
+				} else {
+					final String l_str = l_entityRef.toString();
+					l_refValues.add(l_str);
+				}
 			}
+			l_att = createAttributeFromManyToOne(p_field, l_refValues);
 		}
-		final Attribute l_att = createAttributeFromManyToOne(p_field, l_refValues);
 
 		return l_att;
 	}
 
+	/**
+	 * Cria um atributo com base em uma relação de muitos para um, esta relação
+	 * leva a criar um atributo do tipo Nominal, para isto é preciso de uma
+	 * relação de strings na mesma ordem.
+	 *
+	 * @param p_field
+	 * @param p_refListValue
+	 * @return
+	 */
 	private Attribute createAttributeFromManyToOne(Field p_field, List<String> p_refListValue) {
 		final String l_name = createNameAttribute(p_field);
 
 		final Attribute l_att = new Attribute(l_name, p_refListValue);
-		mapAttributeToRefValues.put(l_att, p_refListValue);
+		helper.putAttributeToRefValues(l_att, p_refListValue);
 		return l_att;
 	}
 
@@ -185,50 +212,26 @@ public class Weka2JPAAttributeProcessor<E> {
 	public ArrayList<Attribute> createAttributes() {
 
 		final ArrayList<Attribute> l_atts = new ArrayList<Attribute>(fields.length);
+		createAttributes(l_atts);
+
+		return l_atts;
+	}
+
+	private void createAttributes(final ArrayList<Attribute> l_atts) {
+		final ArrayList<Field> l_fieldsForGetExtraAttributes = new ArrayList<Field>(fields.length);
 
 		for (final Field l_field : fields) {
-			Attribute l_att = null;
-			final Class<?> l_typeField = l_field.getType();
-			final String l_nameField = l_field.getName();
-			if (helper.ignoreFieldsTypeOf.contains(l_typeField) || helper.ignoreFieldsName.contains(l_nameField)
-					|| l_nameField.equals("serialVersionUID")) {
-				continue;
-			}
-
-			if (l_field.getDeclaredAnnotation(Column.class) != null) {
-				l_att = createAttributeFromColumn(l_field);
-			} else if (l_field.getDeclaredAnnotation(ManyToOne.class) != null) {
-				l_att = createAttributeFromManyToOne(l_field);
-			} else if (l_field.getDeclaredAnnotation(OneToMany.class) != null) {
-				l_att = createAttributeFromOneToMany(l_field);
-				continue; // TODO o metodo createAttributeFromOneToMany não está
-							// implementado ainda
-			} else if (l_field.getDeclaredAnnotation(OneToOne.class) != null) {
-				l_att = createAttributeFromOneToOne(l_field);
-				continue;// TODO o metodo createAttributeFromOneToOne não está
-							// implementado ainda
-			} else if (l_field.getDeclaredAnnotation(ManyToMany.class) != null) {
-				l_att = createAttributeFromManyToMany(l_field);
-				continue;// TODO o metodo createAttributeFromManyToMany não está
-							// implementado ainda
-			} else if (l_field.getDeclaredAnnotation(Temporal.class) != null) {
-				l_att = createAttributeFromTemporal(l_field);
-				continue;// TODO o metodo createAttributeFromTemporal não está
-							// implementado ainda
-			} else {
-				// qualquer outra anotação será ignorada
-				continue;
-			}
-			l_atts.add(l_att);
-			mapAttributeToField.put(l_att, l_field);
+			createAttribute(l_atts, l_field, l_fieldsForGetExtraAttributes);
 		}
 
-		log.info("Atributos Criados: " + l_atts);
+		log.info("Atributos: " + l_atts);
+
+		createExtraAttributesFromFields(l_fieldsForGetExtraAttributes, l_atts);
+		log.info("Atributos: " + l_atts);
+
 		createAttributesExtraFields(l_atts);
 
 		log.info("Lista Final dos Atributos: " + l_atts);
-
-		return l_atts;
 	}
 
 	/**
@@ -263,33 +266,43 @@ public class Weka2JPAAttributeProcessor<E> {
 				}
 			}
 			p_atts.add(l_att);
-			mapAttributeToExtraField.put(l_att, l_extraField);
+			putAttributeToExtraField(l_att, l_extraField);
 		}
 		log.info("Novos Atributos, Lista geral: " + p_atts);
 	}
 
-	public Instances createInstances(ArrayList<Attribute> p_atts, Collection<E> l_list) {
-		final Instances l_instances = new Instances(getRelationBaseName(), p_atts, 0);
-		for (final E l_object : l_list) {
-			final double[] l_vals = new double[l_instances.numAttributes()];
+	@SuppressWarnings("unchecked")
+	private void createExtraAttributeFromField(ArrayList<Attribute> p_atts, String p_extraAttribute,
+			@SuppressWarnings("rawtypes") Class p_type) {
+		// TODO Auto-generated method stub
 
-			final ArrayList<Attribute> l_incoginitoAttributes = new ArrayList<>();
-			processValueFromEachField(l_object, l_instances, l_vals, p_atts, l_incoginitoAttributes);
-
-			processValueFromEachExtraField(l_object, l_instances, l_vals, p_atts, l_incoginitoAttributes);
-
-			// TODO parametrizar o tipo de ARFF:
-			// DenseInstance,
-			// SparseInstance,
-			// BinarySparseInstance
-			final DenseInstance l_instance = new DenseInstance(1.0, l_vals);
-			for (final Attribute l_att : l_incoginitoAttributes) {
-				l_instance.setMissing(l_att.index());
-			}
-			l_instances.add(l_instance);
-
+		Attribute l_att;
+		if (p_type.isAssignableFrom(String.class)) {
+			l_att = new Attribute(p_extraAttribute, (List<String>) null);
+		} else {
+			throw new NotImplementedException("O Atributo: " + p_extraAttribute + " usa um tipo (" + p_type
+					+ ") no qual não estou preparado para gerar ainda!");
 		}
-		return l_instances;
+		p_atts.add(l_att);
+		mapExtraAttributeFromSlaveField.put(l_att, p_extraAttribute);
+	}
+
+	@SuppressWarnings("unchecked")
+	private void createExtraAttributesFromFields(ArrayList<Field> p_fieldsForGetExtraAttributes,
+			ArrayList<Attribute> p_atts) {
+
+		for (final Field l_field : p_fieldsForGetExtraAttributes) {
+
+			@SuppressWarnings("rawtypes")
+			final ExtraAttributesFromFieldToString l_callBacks = getExtraAttributesCallBackToField(l_field);
+
+			l_callBacks.forEach((p_extraAttribute, p_callback) -> {
+
+				final String l_extraAttribute = (String) p_extraAttribute;
+				createExtraAttributeFromField(p_atts, l_extraAttribute, String.class);
+
+			});
+		}
 	}
 
 	/**
@@ -314,41 +327,16 @@ public class Weka2JPAAttributeProcessor<E> {
 		return l_name;
 	}
 
-	/**
-	 * Obtem o CallBack para um determinado campo de uma entidade com base no
-	 * nome do campo
-	 *
-	 * @param l_fieldName
-	 * @return
-	 */
-	private CallbackField<?> getCallBackClass(String l_fieldName) {
+	private Set<String> getAllNameExtraAttributesFromFieldToString() {
 
-		final CallbackField<?> l_callback = helper.baseClassFieldClassCallBack.get(l_fieldName);
-		return l_callback;
-	}
+		// reserva um espaço duas vezese maior que o espaço usado para a chaves
+		// no mapa
+		final Set<String> l_allExtraAttributes = new HashSet(sizeOfExtraAttributesFromFieldToString() * 2);
 
-	private CallbackField<?> getCallbackClassField(Class<?> p_class) {
-		return helper.baseClassFieldClassCallBack.get(p_class);
-	}
-
-	/**
-	 * Obtem o CallBack para um determinado campo da entidade.
-	 *
-	 * @param p_field
-	 * @return
-	 */
-	private CallbackField<?> getCallbackClassField(Field p_field) {
-		final String l_fieldName = p_field.getName();
-		CallbackField<?> l_callback = getCallBackClass(l_fieldName);
-		if (l_callback == null) {
-			l_callback = getCallbackClassField(p_field.getType());
+		for (final ExtraAttributesFromFieldToString l_extraAttributes : valuesExtraAttributesFromFieldToString()) {
+			l_allExtraAttributes.addAll(l_extraAttributes.getExtraAttributes());
 		}
-		return l_callback;
-	}
-
-	private CallbackField<?> getCallBackExtraField(String p_fieldName) {
-
-		return helper.baseClassFieldCallBack.get(p_fieldName);
+		return l_allExtraAttributes;
 	}
 
 	/**
@@ -358,201 +346,69 @@ public class Weka2JPAAttributeProcessor<E> {
 	 * @return
 	 */
 	private Class<?> getDefaultClassExtraField(String p_field) {
-		return helper.baseClassDefaultClassExtraField.get(p_field);
+		return helper.getDefaultClassExtraField(p_field);
+	}
+
+	private ExtraAttributesFromFieldToString getExtraAttributesCallBackToField(Field p_fieldName) {
+
+		return getExtraAttributesCallBackToField(p_fieldName.getName());
 	}
 
 	/**
-	 * Retorna o valor padrão para um determinado campo.
+	 * Retorna os callbacks que serão usados para construir o Attributos Extras,
+	 * ele não existindo indica que este campo não tem campo extra, retornando
+	 * uma lista vazia.
 	 *
-	 * @param l_fieldName
+	 * @param p_fieldName
 	 * @return
 	 */
-	private Object getDefaultValue(String l_fieldName) {
-
-		return helper.baseClassDefaultValuesExtraField.get(l_fieldName);
+	@SuppressWarnings("rawtypes")
+	private ExtraAttributesFromFieldToString getExtraAttributesCallBackToField(String p_fieldName) {
+		return helper.getExtraAttributesCallBackToField(p_fieldName);
 	}
 
 	private Set<String> getExtraFieldsNames() {
-		return helper.baseClassExtraFieldsNames;
-	}
-
-	private List<String> getReferenceValues(Attribute l_att) {
-		return mapAttributeToRefValues.get(l_att);
+		return helper.getExtraFieldsNames();
 	}
 
 	/**
-	 * Nome será usada como referencia para construir o campo \@Relation do
-	 * arquivo ARFF
+	 * Informa se o o campo tem callback cadastrado para obtenção de atributos
+	 * extras.
 	 *
+	 *
+	 *
+	 * @param p_field
 	 * @return
 	 */
-	public String getRelationBaseName() {
-		return relationBaseName;
+	private boolean hasExtraAttributeCallBackToField(Field p_field) {
+
+		return hasExtraAttributeCallBackToField(p_field.getName());
 	}
 
 	/**
-	 * Processa os valores referentes aos compos extras.
+	 * @see #hasExtraAttributeCallBackToField(Field)
 	 *
-	 * Esta função é altamente dependente dos callbacks para gerar novos
-	 * valores.
-	 *
-	 * @param p_entity
-	 * @param p_instances
-	 * @param p_listVals
-	 * @param p_atts
-	 * @param p_incoginitoAttributes
-	 */
-	private void processValueFromEachExtraField(final E p_entity, final Instances p_instances,
-			final double[] p_listVals, final ArrayList<Attribute> p_atts,
-			final ArrayList<Attribute> p_incoginitoAttributes) {
-
-		mapAttributeToExtraField.forEach((p_att, p_fieldName) -> {
-
-			try {
-
-				final int l_attIndex = p_atts.indexOf(p_att);
-
-				double l_val = 0;
-
-				final CallbackField<?> l_callBack = getCallBackExtraField(p_fieldName);
-
-				final Object l_defaultValue = getDefaultValue(p_fieldName);
-
-				boolean l_incognito = false;
-
-				if (checkMissingFieldValue(p_fieldName, l_defaultValue)
-						|| useNullLikeIncognito() && l_defaultValue == null) {
-					l_incognito = true;
-				}
-
-				if (l_callBack instanceof CallbackFieldToNumber) {
-					@SuppressWarnings("rawtypes")
-					final Number l_value = (Number) ((CallbackFieldToNumber) l_callBack).call(p_entity, p_fieldName,
-							l_defaultValue);
-
-					if (l_value != null) {
-						l_val = l_value.doubleValue();
-
-					} else if (useNullLikeIncognito()) {
-						l_incognito = true;
-					}
-
-				} else if (l_callBack instanceof CallbackFieldToString) {
-					final String l_string = ((CallbackFieldToString) l_callBack).call(p_entity, p_fieldName,
-							l_defaultValue);
-
-					if (l_string != null) {
-						l_val = p_instances.attribute(l_attIndex).addStringValue(l_string);
-					} else if (useNullLikeIncognito()) {
-						l_incognito = true;
-					}
-
-				} else if (l_defaultValue != null) {
-					l_val = p_instances.attribute(l_attIndex).addStringValue(l_defaultValue.toString());
-				} else if (useNullLikeIncognito()) {
-					l_incognito = true;
-				}
-
-				if (l_incognito) {
-					p_incoginitoAttributes.add(p_att);
-				}
-
-				p_listVals[l_attIndex] = l_val;
-
-			} catch (final Exception e) {
-				// does nothing ignores the value?
-				log.info(e.getMessage());
-			}
-
-		});
-	}
-
-	private void processValueFromEachField(final E p_entityObj, final Instances p_instances, final double[] p_vals,
-			final ArrayList<Attribute> p_atts, final ArrayList<Attribute> p_incoginitoAttributes) {
-
-		mapAttributeToField.forEach((p_att, p_field) -> {
-
-			try {
-
-				final int l_attIndex = p_atts.indexOf(p_att);
-
-				final Class<?> p_fieldType = p_field.getType();
-				p_field.setAccessible(true);
-
-				double l_val = 0;
-				boolean l_incognito = false;
-				if (p_fieldType == String.class) {
-					final String l_string = (String) p_field.get(p_entityObj);
-
-					if (l_string != null) {
-						l_val = p_instances.attribute(l_attIndex).addStringValue(l_string);
-
-						if (checkMissingFieldValue(p_field.getName(), l_string)) {
-							l_incognito = true;
-						}
-
-					} else if (useNullLikeIncognito()) {
-						l_incognito = true;
-					}
-
-				} else if (p_fieldType.isAssignableFrom(Number.class)) {
-					final Double l_double = p_field.getDouble(p_entityObj);
-
-					if (l_double != null) {
-						l_val = l_double;
-
-						if (checkMissingFieldValue(p_field.getName(), l_double)) {
-							l_incognito = true;
-						}
-
-					} else if (useNullLikeIncognito()) {
-						l_incognito = true;
-					}
-
-				} else {
-					final List<String> l_refValues = getReferenceValues(p_att);
-					final Object l_value = p_field.get(p_entityObj);
-
-					String l_strValue;
-					if (l_value instanceof String) {
-						l_strValue = (String) l_value;
-					} else {
-						final CallbackField<?> l_callback = getCallbackClassField(p_field);
-
-						final String l_fieldName = p_field.getName();
-						if (l_callback != null) {
-							l_strValue = (String) l_callback.call(p_entityObj, l_fieldName, l_value);
-						} else {
-							l_strValue = l_value.toString();
-						}
-					}
-
-					if (useNullLikeIncognito() && l_strValue == null
-							|| checkMissingFieldValue(p_field.getName(), l_value)) {
-						l_incognito = true;
-					}
-
-					l_val = l_refValues.indexOf(l_strValue);
-				}
-				if (l_incognito) {
-					p_incoginitoAttributes.add(p_att);
-				}
-
-				p_vals[l_attIndex] = l_val;
-
-			} catch (final Exception e) {
-				// does nothing ignores the value?
-				log.warn(e.getMessage());
-			}
-		});
-	}
-
-	/**
-	 * Retorna se deve ou não usar o valor null como Incognito;
-	 *
+	 * @param p_fieldName
 	 * @return
 	 */
-	private boolean useNullLikeIncognito() {
-		return helper.useNullLikeIncognito;
+	private boolean hasExtraAttributeCallBackToField(String p_fieldName) {
+
+		return helper.containFieldNameForExtraAttributesFromFieldToString(p_fieldName);
+	}
+
+	private String putAttributeToExtraField(Attribute l_att, final String l_extraField) {
+		return helper.putAttributeToExtraField(l_att, l_extraField);
+	}
+
+	private Field putAttributeToField(Attribute l_att, final Field l_field) {
+		return helper.putAttributeToField(l_att, l_field);
+	}
+
+	private int sizeOfExtraAttributesFromFieldToString() {
+		return helper.sizeOfExtraAttributesFromFieldToString();
+	}
+
+	private Collection<ExtraAttributesFromFieldToString> valuesExtraAttributesFromFieldToString() {
+		return helper.valuesFromExtraAttributesFromFieldToString();
 	}
 }
