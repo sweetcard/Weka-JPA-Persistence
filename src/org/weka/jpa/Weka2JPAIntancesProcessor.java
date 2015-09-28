@@ -38,44 +38,101 @@ public class Weka2JPAIntancesProcessor<E> extends Weka2JPAProcessor<E> {
 		return l_value.equals(l_string);
 	}
 
+	/**
+	 *
+	 * @param p_atts
+	 * @return
+	 */
+	public Instances createInstances(ArrayList<Attribute> p_atts) {
+		log.info("Instancias obtidos diretamente pelo JPA");
+
+		final String l_qlString = "SELECT E FROM " + getRelationBaseName() + " E ";
+
+		final Query l_query = createQuery(l_qlString);
+
+		@SuppressWarnings("rawtypes")
+		final List l_list = l_query.getResultList();
+		final Instances l_instances = populateInstanceWithData(p_atts, l_list);
+		return l_instances;
+	}
+
+	/**
+	 *
+	 * @param p_atts
+	 * @param p_list
+	 * @return
+	 */
 	public Instances createInstances(ArrayList<Attribute> p_atts, Collection<E> p_list) {
-		Collection<E> l_list;
-		if (p_list == null) {
-			log.info("Instancias obtidos diretamente pelo JPA");
-			final String l_qlString = "SELECT E FROM " + getRelationBaseName() + " E ";
 
-			final Query l_query = createQuery(l_qlString);
+		log.info("Instancias usando lista de entidades fornecida");
 
-			l_list = l_query.getResultList();
-		} else {
-			log.info("Instancias usando lista de entidades fornecida");
-			l_list = p_list;
-		}
-
-		final Instances l_instances = createInstances(p_atts, l_list);
+		final Instances l_instances = populateInstanceWithData(p_atts, p_list);
 
 		return l_instances;
 	}
 
-	private void forEachAttributeToExtraField(BiConsumer<? super Attribute, ? super String> p_action) {
-		helper.forEachAttributeToExtraField(p_action);
+	private void forEachAttributeToExtraAttribute(BiConsumer<? super Attribute, ? super String> p_action) {
+		helper.forEachAttributeToExtraAttribute(p_action);
 	}
 
 	private void forEachAttributeToField(BiConsumer<? super Attribute, ? super Field> p_action) {
 		helper.forEachAttributeToField(p_action);
 	}
 
+	/**
+	 * @param p_object
+	 * @param p_instances
+	 * @param p_vals
+	 * @param p_atts
+	 * @param p_incoginitoAttributes
+	 */
+	private void forExtraAttributesFromFieldToString(E p_object, Instances p_instances, double[] p_vals,
+			ArrayList<Attribute> p_atts, ArrayList<Attribute> p_incoginitoAttributes) {
+		helper.forExtraAttributesFromFieldToString(p_object, p_instances, p_vals, p_atts, p_incoginitoAttributes);
+
+	}
+
 	private List<String> getReferenceValues(Attribute l_att) {
 		return helper.getReferenceValues(l_att);
 	}
 
+	/**
+	 *
+	 * @param p_atts
+	 * @param p_list
+	 * @return
+	 */
 	private Instances populateInstanceWithData(ArrayList<Attribute> p_atts, Collection<E> p_list) {
-		final Instances l_instances = new Instances(getRelationBaseName(), p_atts, 0);
-		for (final E l_object : p_list) {
-			final double[] l_vals = new double[l_instances.numAttributes()];
+		final Instances l_instances = new Instances(getRelationBaseName(), p_atts, p_list.size());
 
-			final ArrayList<Attribute> l_incoginitoAttributes = new ArrayList<>();
+		final int l_numAttributes = l_instances.numAttributes();
+
+		for (final E l_object : p_list) {
+			final double[] l_vals = new double[l_numAttributes];
+			// em
+			// nosso
+			// projeto
+			// não
+			// acredito
+			// que
+			// haveram
+			// mais
+			// que
+			// dois,
+			// porém
+			// isso
+			// é
+			// so
+			// uma
+			// inicialização
+			// não
+			// um
+			// limite
+			// extrito.
+			final ArrayList<Attribute> l_incoginitoAttributes = new ArrayList<>(2);
 			processValueFromEachField(l_object, l_instances, l_vals, p_atts, l_incoginitoAttributes);
+
+			processVAlueFromExtraChildremFromFields(l_object, l_instances, l_vals, p_atts, l_incoginitoAttributes);
 
 			processValueFromEachExtraField(l_object, l_instances, l_vals, p_atts, l_incoginitoAttributes);
 
@@ -110,7 +167,7 @@ public class Weka2JPAIntancesProcessor<E> extends Weka2JPAProcessor<E> {
 			final double[] p_listVals, final ArrayList<Attribute> p_atts,
 			final ArrayList<Attribute> p_incoginitoAttributes) {
 
-		forEachAttributeToExtraField((p_att, p_fieldName) -> {
+		forEachAttributeToExtraAttribute((p_att, p_fieldName) -> {
 
 			try {
 
@@ -252,6 +309,30 @@ public class Weka2JPAIntancesProcessor<E> extends Weka2JPAProcessor<E> {
 				log.warn(e.getMessage());
 			}
 		});
+	}
+
+	/**
+	 * Com base nos campos da classe filha mapeados para atributos obter seus
+	 * dados.
+	 *
+	 * @param p_object
+	 * @param p_instances
+	 * @param p_vals
+	 * @param p_atts
+	 * @param p_incoginitoAttributes
+	 */
+	@SuppressWarnings("unchecked")
+	private void processVAlueFromExtraChildremFromFields(E p_object, Instances p_instances, double[] p_vals,
+			ArrayList<Attribute> p_atts, ArrayList<Attribute> p_incoginitoAttributes) {
+		// TODO Auto-generated method stub
+		log.info("Objeto: " + p_object);
+		log.info("Instances: " + p_instances);
+		log.info("Valores: " + p_vals);
+		log.info("Atributos: " + p_atts);
+		log.info("Icoguinitos: " + p_incoginitoAttributes);
+
+		forExtraAttributesFromFieldToString(p_object, p_instances, p_vals, p_atts, p_incoginitoAttributes);
+
 	}
 
 	/**

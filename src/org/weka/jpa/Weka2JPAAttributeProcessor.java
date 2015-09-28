@@ -296,10 +296,12 @@ public class Weka2JPAAttributeProcessor<E> extends Weka2JPAProcessor<E> {
 			@SuppressWarnings("rawtypes")
 			final ExtraAttributesFromFieldToString l_callBacks = getExtraAttributesCallBackToField(l_field);
 
-			l_callBacks.forEach((p_extraAttribute, p_callback) -> {
+			l_callBacks.forEachNewAttribute((p_extraAttributeName) -> {
 
-				final String l_extraAttribute = (String) p_extraAttribute;
-				createExtraAttributeFromField(p_atts, l_extraAttribute, String.class);
+				final String l_extraAttributeName = (String) p_extraAttributeName;
+				// TODO identificar uma forma de definir se será String, Numeral
+				// ou Nominal
+				createExtraAttributeFromField(p_atts, l_extraAttributeName, String.class);
 
 			});
 		}

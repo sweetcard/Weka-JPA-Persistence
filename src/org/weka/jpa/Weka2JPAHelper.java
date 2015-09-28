@@ -89,12 +89,12 @@ public class Weka2JPAHelper<E> {
 	 * Armazena os novos atributos que serão criados com base nos campos da
 	 * entidade que é filha da entidade principal.
 	 *
-	 * Sua construção e feita da seguinte forma:
-	 *
-	 *
 	 *
 	 * Sendo portanto a chave do mapa o nome do Atributo. para saber se um campo
 	 * está atribuido a um atributo extra deve buscar o mapa associado.
+	 *
+	 * String: Nome do Campo {@link ExtraAttributesFromFieldToString} detalhes
+	 * do novo atributo com relação a classe e campo ({@link Field})
 	 */
 	@SuppressWarnings("rawtypes")
 	private final Map<String, ExtraAttributesFromFieldToString> extraAttributesFromFieldToString = new HashMap<>();
@@ -139,7 +139,7 @@ public class Weka2JPAHelper<E> {
 	/**
 	 *
 	 */
-	private final Map<Attribute, String> mapAttributeToExtraField;
+	private final Map<Attribute, String> mapAttributeToExtraAttribute;
 
 	private final Map<Attribute, Field> mapAttributeToField;
 
@@ -161,7 +161,7 @@ public class Weka2JPAHelper<E> {
 		em = p_em;
 
 		mapAttributeToField = new HashMap<>();
-		mapAttributeToExtraField = new HashMap<>();
+		mapAttributeToExtraAttribute = new HashMap<>();
 		mapAttributeToRefValues = new HashMap<>();
 	}
 
@@ -175,7 +175,9 @@ public class Weka2JPAHelper<E> {
 		ExtraAttributesFromFieldToString<T> l_extraAttributes = extraAttributesFromFieldToString.get(p_fieldName);
 
 		if (l_extraAttributes == null) {
+
 			l_extraAttributes = new ExtraAttributesFromFieldToString<T>(p_fieldName, p_class);
+
 			extraAttributesFromFieldToString.put(p_fieldName, l_extraAttributes);
 		}
 
@@ -271,12 +273,13 @@ public class Weka2JPAHelper<E> {
 	 * @see #addExtraField(String, String)
 	 *
 	 * @param p_string
-	 * @param p_unknow
+	 * @param p_default
+	 *            Valor Default a ser usado.
 	 * @param p_callback
 	 */
-	public <V> void addExtraFieldToString(String p_string, V p_unknow, CallbackFieldToString p_callback) {
+	public <V> void addExtraFieldToString(String p_string, V p_default, CallbackFieldToString p_callback) {
 		baseClassExtraFieldsNames.add(p_string);
-		baseClassDefaultValuesExtraField.put(p_string, p_unknow);
+		baseClassDefaultValuesExtraField.put(p_string, p_default);
 		baseClassFieldCallBack.put(p_string, p_callback);
 	}
 
@@ -312,12 +315,29 @@ public class Weka2JPAHelper<E> {
 		return em.createQuery(p_qlString);
 	}
 
-	void forEachAttributeToExtraField(BiConsumer<? super Attribute, ? super String> p_action) {
-		mapAttributeToExtraField.forEach(p_action);
+	void forEachAttributeToExtraAttribute(BiConsumer<? super Attribute, ? super String> p_action) {
+		mapAttributeToExtraAttribute.forEach(p_action);
 	}
 
 	void forEachAttributeToField(BiConsumer<? super Attribute, ? super Field> p_action) {
 		mapAttributeToField.forEach(p_action);
+	}
+
+	void forExtraAttributesFromFieldToString(
+			BiConsumer<? super String, ? super ExtraAttributesFromFieldToString> p_action) {
+		extraAttributesFromFieldToString.forEach(p_action);
+	}
+
+	@SuppressWarnings("unchecked")
+	void forExtraAttributesFromFieldToString(E p_object, Instances p_instances, double[] p_vals,
+			ArrayList<Attribute> p_atts, ArrayList<Attribute> p_incoginitoAttributes) {
+		forExtraAttributesFromFieldToString((p_fildName, p_attributesDetail) -> {
+			log.info("Atributo: " + p_fildName);
+			log.info("Detalhes: " + p_attributesDetail);
+
+			p_attributesDetail.forObjectCreateNewValueForEachAttribute(p_object, p_instances, p_vals, p_atts,
+					p_incoginitoAttributes);
+		});
 	}
 
 	/**
@@ -434,7 +454,7 @@ public class Weka2JPAHelper<E> {
 	}
 
 	String putAttributeToExtraField(Attribute l_att, final String l_extraField) {
-		return mapAttributeToExtraField.put(l_att, l_extraField);
+		return mapAttributeToExtraAttribute.put(l_att, l_extraField);
 	}
 
 	Field putAttributeToField(Attribute p_att, Field p_field) {
@@ -536,11 +556,10 @@ public class Weka2JPAHelper<E> {
 
 	/**
 	 * Define um callback especifico para converter uma determinada classe em
-	 * String.
+	 * {@link Number}.
 	 *
 	 * Este callback pode ser usado sempre que é encontrado uma classe filha,
-	 * para fornecer sua representação string no lugar de chamar o método
-	 * {@link Object#toString()}
+	 * para fornecer sua representação numerica
 	 *
 	 * @param p_class
 	 * @param p_callback
