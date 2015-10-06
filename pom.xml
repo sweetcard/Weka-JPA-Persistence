@@ -64,7 +64,7 @@
 		<dependency>
 			<groupId>br.com.socialsla</groupId>
 			<artifactId>CDI-Utils</artifactId>
-			<version>0.0.2</version>
+			<version>0.0.3</version>
 		</dependency>
 	</dependencies>
 	<description>
