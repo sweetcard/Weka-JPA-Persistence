@@ -5,15 +5,15 @@ import javax.enterprise.inject.spi.InjectionPoint;
 import javax.inject.Inject;
 import javax.persistence.EntityManager;
 
-import org.cdi.utils.ConfigurationInjectionManager;
-import org.cdi.utils.InjectedConfiguration;
+import org.cdi.utils.CDIUtilsInjectionManager;
+import org.cdi.utils.annotations.InjectedString;
 import org.jboss.weld.log.LoggerProducer;
 import org.slf4j.Logger;
 
 public class Weka2JPAHelperFactory {
 
 	@Inject
-	ConfigurationInjectionManager cim;
+	CDIUtilsInjectionManager cim;
 
 	@Inject
 	LoggerProducer lp;
@@ -22,7 +22,7 @@ public class Weka2JPAHelperFactory {
 	EntityManagerFactory emf;
 
 	@Produces
-	@InjectedConfiguration
+	@InjectedString
 	public <E> Weka2JPAHelper<E> createHelper(InjectionPoint p_ip) {
 
 		Logger l_logger = lp.produceLog(p_ip);

@@ -10,8 +10,8 @@ import javax.inject.Named;
 import javax.persistence.EntityManager;
 import javax.persistence.Persistence;
 
-import org.cdi.utils.ConfigurationInjectionManager;
-import org.cdi.utils.InjectedConfiguration;
+import org.cdi.utils.CDIUtilsInjectionManager;
+import org.cdi.utils.annotations.InjectedString;
 
 /**
  * 
@@ -28,11 +28,11 @@ public class EntityManagerFactory {
 	 * 
 	 */
 	@Inject
-	@InjectedConfiguration(key = "WEKA.PERSISTENCE.UNIT", defaultValue = WEKA_PERSISTENCE)
+	@InjectedString(key = "WEKA.PERSISTENCE.UNIT", defaultValue = WEKA_PERSISTENCE)
 	private String unitName;
 
 	@Inject
-	private ConfigurationInjectionManager cim;
+	private CDIUtilsInjectionManager cim;
 
 	/**
 	 * Cria uma {@link EntityManager} com base na configuração injetada, esta
@@ -42,9 +42,9 @@ public class EntityManagerFactory {
 	 */	@Produces
 	@Any
 	@Named(WEKA_PERSISTENCE_CONFIGURED)
-	@InjectedConfiguration
+	@InjectedString
 	public EntityManager createEntityManager(InjectionPoint p_ip) {
-		String l_value = cim.injectConfiguration(p_ip);
+		String l_value = cim.injectString(p_ip);
 		return Persistence.createEntityManagerFactory(l_value).createEntityManager();
 	}
 

@@ -68,7 +68,7 @@ public class ExtraAttributesFromFieldToString<T> {
 
 				final Attribute l_attribute = p_instances.attribute(p_attributeName);
 				final int l_attributeValueIndex = l_attribute.addStringValue(l_attributeValue);
-				int l_index = l_attribute.index();
+				final int l_index = l_attribute.index();
 				p_vals[l_index] = l_attributeValueIndex;
 			} catch (final Exception e) {
 				e.printStackTrace();
@@ -111,6 +111,7 @@ public class ExtraAttributesFromFieldToString<T> {
 	 * @throws NoSuchFieldException
 	 * @throws SecurityException
 	 */
+	@SuppressWarnings("unchecked")
 	public T getValueFromFieldAt(Object p_object)
 			throws IllegalArgumentException, IllegalAccessException, NoSuchFieldException, SecurityException {
 		// TODO: Analisar se é interessante usar também o método get especifico
@@ -118,6 +119,7 @@ public class ExtraAttributesFromFieldToString<T> {
 		return (T) getField(p_object).get(p_object);
 	}
 
+	@SuppressWarnings("rawtypes")
 	public CallBackExtraAttributeFromFieldToString put(String p_attributeName,
 			CallBackExtraAttributeFromFieldToString<T> p_callback) {
 		return map.put(p_attributeName, p_callback);
